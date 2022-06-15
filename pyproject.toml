@@ -1,0 +1,57 @@
+[tool.poetry]
+name = "didactic"
+version = "0.1.0"
+description = "Deep manIfolD leArning CharacTerization In eChocardiography (DIDACTIC) project"
+authors = ["Nathan Painchaud <nathan.painchaud@usherbrooke.ca>"]
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/nathanpainchaud/didactic"
+classifiers=[
+    "Environment :: Console",
+    "Natural Language :: English",
+    # Pick your license as you wish
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    # Specify the Python versions you support here. In particular, ensure
+    # that you indicate whether you support Python 2, Python 3 or both.
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+]
+
+[tool.poetry.dependencies]
+python = "~3.10.6"
+torch = "~1.12.0"
+torchvision = "~0.13.0"
+pytorch-lightning = "~1.7.0"
+hydra-core = "~1.2.0"
+numpy = "*"
+pandas = "*"
+PyYAML = "*"
+matplotlib = "*"
+comet-ml = "*"
+vital = { path = "./vital/", develop = false }
+
+[tool.poetry.group.dev.dependencies]
+vital = { path = "./vital/", develop = true }
+pre-commit = "^2.20.0"
+isort = "==5.10.1"
+black = "==22.8.0"
+flake8 = "==5.0.4"
+flake8-docstrings = "==1.6.0"
+
+[tool.poetry.scripts]
+didactic-runner = "didactic.runner:main"
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+exclude = "(.eggs|.git|.hg|.mypy_cache|.nox|.tox|.venv|.svn|_build|buck-out|build|dist)"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+src_paths = ["didactic"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
