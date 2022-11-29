@@ -1,0 +1,14 @@
+defaults:
+  - default
+  - iterator@patients_kwargs: cardinal/patients
+
+_target_: didactic.data.cardinal.data_module.CardinalSyntheticClinicalAttrsDataModule
+
+process_patient_kwargs:
+  clinical_attributes: [ef, edv, esv]
+  image_attributes: []
+
+subsets:
+  train: ${oc.env:CARDINAL_DATA_PATH}/train.txt
+  val: ${oc.env:CARDINAL_DATA_PATH}/val.txt
+  test: ${oc.env:CARDINAL_DATA_PATH}/test.txt
