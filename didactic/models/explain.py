@@ -164,3 +164,38 @@ def attention_rollout(
     if is_item:
         attention_mask = attention_mask.squeeze(dim=0)
     return attention_mask
+
+
+def k_number(attention: Tensor, row_reduction: Literal["median", "mean", "min", "max"] = "median") -> float:
+    """Computes an attention map's k-number, an indicator of the spread of its attention.
+
+    References:
+        - Paper proposing k-number to discriminate attention maps' importance: https://arxiv.org/abs/2104.00926
+
+    Args:
+        attention: (S, S), Attention map for which to compute the k-number.
+        row_reduction: Reduction to apply across the rows to obtain only one k-number for the whole attention map.
+
+    Returns:
+        The attention map's k-number.
+    """
+    sorted_attn, _ = torch.sort(attention, 1, descending=True)
+    cum_attn = sorted_attn.cumsum(dim=1)
+    first_past_90_idx = (cum_attn < 0.9).sum(dim=1) + 1  # Add 1 to include the token to reach > 0.9 in the count
+    k_numbers_by_row = first_past_90_idx / len(attention)  # Normalize the k-number w.r.t. the number of tokens
+
+    match row_reduction:
+        case "median":
+            k_number = k_numbers_by_row.median()
+        case "mean":
+            k_number = k_numbers_by_row.mean()
+        case "max":
+            k_number = k_numbers_by_row.max()[0]
+        case "min":
+            k_number = k_numbers_by_row.min()[0]
+        case _:
+            raise ValueError(
+                f"Unexpected value for 'row_reduction': {row_reduction}. Use one of: ['median', 'mean', 'max', 'min']."
+            )
+
+    return k_number.item()
