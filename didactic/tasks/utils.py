@@ -1,16 +1,22 @@
+import logging
 from statistics import mean
-from typing import Any, Dict, Iterable, Literal, Tuple
+from typing import Any, Dict, Iterable, Literal, Sequence, Tuple
 
 import numpy as np
 import torch
+from tqdm.auto import tqdm
 from vital.data.cardinal.config import CardinalTag, ClinicalAttribute, ImageAttribute
 from vital.data.cardinal.config import View as ViewEnum
 from vital.data.cardinal.datapipes import process_patient
+from vital.data.cardinal.utils.data_dis import check_subsets
 from vital.data.cardinal.utils.data_struct import Patient
+from vital.data.cardinal.utils.itertools import Patients
 from vital.utils.format.torch import numpy_to_torch
 
 from didactic.models.explain import attention_rollout, k_number, register_attn_weights_hook
 from didactic.tasks.cardiac_multimodal_representation import CardiacMultimodalRepresentationTask
+
+logger = logging.getLogger(__name__)
 
 
 def encode_patients(
@@ -187,3 +193,54 @@ def summarize_patient_attn(
                 )
 
     return attn.cpu().numpy()
+
+
+def summarize_patients_attn(
+    model: CardiacMultimodalRepresentationTask,
+    patients: Patients,
+    subsets: Dict[str, Sequence[Patient.Id]] = None,
+    progress_bar: bool = False,
+    **summarize_patient_attn_kwargs,
+) -> np.ndarray | Dict[str, np.ndarray]:
+    """Summarizes a model's attention on (subsets of) patients using a single attention map.
+
+    Args:
+        model: Transformer encoder model for which we want to analyze the attention.
+        patients: Patients for which to analyze the model's attention.
+        subsets: Lists of patients making up each subset to summarize independently.
+        progress_bar: If ``True``, enables progress bars detailing the progress of the collecting attention maps from
+            patients.
+        **summarize_patient_attn_kwargs: Parameters to pass along to the `summarize_patient_attn` function.
+
+    Returns:
+        Attention map(s) summarizing the attention on all input patients, or on each subset of patients if subsets were
+        provided.
+    """
+    if subsets is not None:
+        check_subsets(list(patients), subsets)
+
+    patients = patients.values()
+    msg = "Collecting attention maps from patients"
+    if progress_bar:
+        patients = tqdm(patients, desc=msg, unit="patient")
+    else:
+        logger.info(msg + "...")
+
+    patients_attn = {
+        patient.id: summarize_patient_attn(model, patient, **summarize_patient_attn_kwargs) for patient in patients
+    }
+    attn_summary = np.stack(list(patients_attn.values())).mean(axis=0)
+
+    if subsets is None:
+        return attn_summary
+
+    if subsets:
+        attn_summary_by_subset = {"all": attn_summary}
+
+        attn_summary_by_subset.update(
+            {
+                subset: np.stack([patients_attn[patient_id] for patient_id in subset_patients]).mean(axis=0)
+                for subset, subset_patients in subsets.items()
+            }
+        )
+        return attn_summary_by_subset
