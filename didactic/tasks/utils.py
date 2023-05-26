@@ -1,4 +1,5 @@
-from typing import Dict, Iterable, Tuple
+from statistics import mean
+from typing import Any, Dict, Iterable, Literal, Tuple
 
 import numpy as np
 import torch
@@ -8,6 +9,7 @@ from vital.data.cardinal.datapipes import process_patient
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.utils.format.torch import numpy_to_torch
 
+from didactic.models.explain import attention_rollout, k_number, register_attn_weights_hook
 from didactic.tasks.cardiac_multimodal_representation import CardiacMultimodalRepresentationTask
 
 
@@ -90,3 +92,98 @@ def encode_patients_attrs(
         out_features = out_features.squeeze(dim=0)
 
     return out_features.cpu().numpy()
+
+
+def summarize_patient_attn(
+    model: CardiacMultimodalRepresentationTask,
+    patient: Patient,
+    mask_tag: str = CardinalTag.mask,
+    use_attention_rollout: bool = False,
+    attention_rollout_kwargs: Dict[str, Any] = None,
+    head_reduction: Literal["mean", "k_max", "k_min"] = "k_min",
+    layer_reduction: Literal["mean", "first", "last", "k_max", "k_min"] = "mean",
+) -> np.ndarray:
+    """Summarizes a model's attention on one patient across multiple layers and heads in a single attention map.
+
+    Args:
+        model: Transformer encoder model for which we want to analyze the attention.
+        patient: Patient for which to summarize the model's attention.
+        mask_tag: Tag of the segmentation mask for which to extract the image attributes.
+        use_attention_rollout: Whether to use attention rollout to compute the summary of the attention.
+        attention_rollout_kwargs: When using attention rollout (`use_attention_rollout` is True), parameters to forward
+            to `didactic.models.explain.attention_rollout`.
+        head_reduction: When not using attention rollout, method to use to aggregate/reduce across attention heads.
+        layer_reduction: When not using attention rollout, method to use to aggregate/reduce across attention layers
+            (once attention heads have already been reduced and each layer is summarized by one attention map).
+
+    Returns:
+        (S, S), Attention map summarizing the model's attention on one patient across multiple layers and heads.
+    """
+    if attention_rollout_kwargs is None:
+        attention_rollout_kwargs = {}
+
+    # Setup hooks to capture attention maps
+    attn_maps = {}
+    hook_handles = register_attn_weights_hook(model, attn_maps, reduction="first")
+
+    # Run inference on the patient to produce attention maps
+    _ = encode_patients(model, [patient], mask_tag=mask_tag)
+
+    # Teardown the hooks
+    for layer_hook in hook_handles.values():
+        layer_hook.remove()
+
+    if use_attention_rollout:
+        attn = attention_rollout(list(attn_maps.values()), **attention_rollout_kwargs)
+
+    else:
+        k_numbers = {
+            layer_name: [k_number(head_attn) for head_idx, head_attn in enumerate(layer_attn)]
+            for layer_name, layer_attn in attn_maps.items()
+        }
+
+        match head_reduction:
+            case "mean":
+                layers_attn = {layer_name: layer_attn.mean(dim=0) for layer_name, layer_attn in attn_maps.items()}
+                k_numbers_reduce_fn = mean
+            case "k_max":
+                layers_attn = {
+                    layer_name: layer_attn[np.argmax(k_numbers[layer_name])]
+                    for layer_name, layer_attn in attn_maps.items()
+                }
+                k_numbers_reduce_fn = max
+            case "k_min":
+                layers_attn = {
+                    layer_name: layer_attn[np.argmin(k_numbers[layer_name])]
+                    for layer_name, layer_attn in attn_maps.items()
+                }
+                k_numbers_reduce_fn = min
+            case _:
+                raise ValueError(
+                    f"Unexpected value for 'k_number_head_reduction': {head_reduction}. "
+                    f"Use one of: ['mean', 'max', 'min']."
+                )
+
+        k_numbers = {
+            layer_name: k_numbers_reduce_fn(k_number_by_head) for layer_name, k_number_by_head in k_numbers.items()
+        }
+        layers_attn = torch.stack(list(layers_attn.values()))
+
+        match layer_reduction:
+            case "mean":
+                attn = layers_attn.mean(dim=0)
+            case "first":
+                attn = layers_attn[0]
+            case "last":
+                attn = layers_attn[-1]
+            case "k_max":
+                attn = layers_attn[np.argmax(list(k_numbers.values()))]
+            case "k_min":
+                attn = layers_attn[np.argmin(list(k_numbers.values()))]
+            case _:
+                raise ValueError(
+                    f"Unexpected value for 'k_number_layer_reduction': {layer_reduction}. "
+                    f"Use one of: ['mean', 'first', 'last', 'k_max', 'k_min']."
+                )
+
+    return attn.cpu().numpy()
