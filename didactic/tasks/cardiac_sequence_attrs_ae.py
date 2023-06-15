@@ -1,6 +1,7 @@
 import itertools
 import logging
 from enum import auto, unique
+from pathlib import Path
 from typing import Dict, Literal, Sequence, Tuple
 
 import hydra
@@ -15,6 +16,7 @@ from vital.data.cardinal.datapipes import PatientData, filter_image_attributes
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 from vital.utils.norm import minmax_scaling, scale
+from vital.utils.saving import load_from_checkpoint
 
 logger = logging.getLogger(__name__)
 
@@ -372,3 +374,38 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
 
             prediction[attr_key] = attr_reconstruction, attr_encoding
         return prediction
+
+
+class CardiacSequenceAttributesAutoencoderTokenizer(nn.Module):
+    """Tokenizer that embeds attributes extracted from cardiac sequences by encoding them using an autoencoder."""
+
+    def __init__(self, cardiac_sequence_attrs_model: str | Path | CardiacSequenceAttributesAutoencoder = None):
+        """Initializes class instance.
+
+        Args:
+            cardiac_sequence_attrs_model: Pretrained image attributes autoencoder model used to compress the attributes
+                into tokens. Mutually exclusive parameter with `embed_dim`.
+        """
+        super().__init__()
+
+        # If the image attributes encoder is a checkpoint rather than an instantiated network, load the model from
+        # the checkpoint
+        if isinstance(cardiac_sequence_attrs_model, (str, Path)):
+            cardiac_sequence_attrs_model = load_from_checkpoint(cardiac_sequence_attrs_model)
+        # Make sure the weights of the backend model used in the tokenizer are frozen
+        # Also, the backend model needs to be saved as a class member even if it's not necessary so that the
+        # tokenizer as a whole can behave as expected of a module
+        # (e.g. moving it across devices is applied recursively to the backend model, etc.)
+        self.img_attrs_ae = cardiac_sequence_attrs_model.eval().requires_grad_(False)
+
+    @torch.inference_mode()
+    def forward(self, attrs: Dict[Tuple[ViewEnum, ImageAttribute], Tensor]) -> Tensor:
+        """Encodes image attributes using the autoencoder.
+
+        Args:
+            attrs: (K: S, V: (N, ?)): Attributes to tokenize, where the dimensionality of each attribute can vary.
+
+        Returns:
+            (N, S, E), Tokenized version of the attributes.
+        """
+        return torch.stack([self.img_attrs_ae(x, task="encode", attr=attr) for attr, x in attrs.items()], dim=1)
