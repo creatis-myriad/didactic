@@ -1,3 +1,6 @@
 [submodule "vital"]
 	path = vital
 	url = https://github.com/nathanpainchaud/vital
+[submodule "XTab"]
+	path = XTab
+	url = https://github.com/nathanpainchaud/XTab
