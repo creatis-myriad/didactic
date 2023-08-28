@@ -1,6 +1,7 @@
 from typing import Sequence
 
 import pytorch_lightning as pl
+from pytorch_lightning import Callback
 from pytorch_lightning.callbacks import BaseFinetuning
 from torch import nn
 from torch.nn import ParameterDict
@@ -9,8 +10,15 @@ from torch.optim import Optimizer
 from didactic.tasks.cardiac_multimodal_representation import CardiacMultimodalRepresentationTask
 
 
-class TransformerEncoderFreeze(BaseFinetuning):
-    """Freezes layers/params that are NOT to be finetuned."""
+class TransformerEncoderFreeze(Callback):
+    """Freezes layers/params that are NOT to be finetuned.
+
+    Notes:
+        - Implemented as a base callback that calls some `BaseFinetuning` methods rather than a child of the
+          `BaseFinetuning` callback because of an issue when coupled with the `LearningRateFinder` callback
+          (see this issue: https://github.com/Lightning-AI/lightning/issues/14674)
+
+    """
 
     def __init__(self, finetune_layers: Sequence[int] = None):
         """Initializes class instance.
@@ -21,6 +29,10 @@ class TransformerEncoderFreeze(BaseFinetuning):
         """
         super().__init__()
         self.finetune_layers = finetune_layers
+
+    # TODO: Remove this override of `setup` when able to revert to inheriting from `BaseFinetuning`
+    def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:  # noqa: D102
+        self.freeze_before_training(pl_module)
 
     def freeze_before_training(self, pl_module: CardiacMultimodalRepresentationTask) -> None:
         """Freezes layers/params that are NOT to be finetuned at the beginning of the training."""
@@ -88,7 +100,8 @@ class TransformerEncoderFreeze(BaseFinetuning):
                     params_to_freeze.append(pl_module.mask_token)
 
         # Freeze the relevant modules and parameters
-        self.freeze(modules_to_freeze)
+        # TODO: Call parent `self.freeze` when able to revert to inheriting from `BaseFinetuning`
+        BaseFinetuning.freeze(modules_to_freeze)
         for param in params_to_freeze:
             param.requires_grad = False
 
