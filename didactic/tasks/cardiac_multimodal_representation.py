@@ -104,6 +104,8 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         predict_losses: Dict[ClinicalAttribute | str, Callable[[Tensor, Tensor], Tensor]] | DictConfig = None,
         contrastive_loss_weight: float = 0,
+        constraint: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
+        constraint_weight: float = 0,
         clinical_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
         img_tokenizer: Optional[nn.Module | DictConfig] = None,
         latent_token: bool = True,
@@ -124,6 +126,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 value.
             contrastive_loss_weight: When `contrastive_loss` is used for co-training (i.e. when both `contrastive_loss`
                 and `predict_losses` are provided), weight to use on the contrastive loss term.
+            constraint: Self-supervised criterion to use to enforce the encodings to respect arbitrary constraints.
+            constraint_weight: When `constraint` is used as an auxiliary loss term, weight to use on the constraint loss
+                term.
             clinical_attrs: Clinical attributes to provide to the model.
             img_attrs: Image attributes to provide to the model.
             views: Views from which to include image attributes.
@@ -262,6 +267,11 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 else contrastive_loss
             )
 
+        # Latent space consistency loss
+        self.constraint = None
+        if constraint:
+            self.constraint = hydra.utils.instantiate(constraint) if isinstance(constraint, DictConfig) else constraint
+
         # Initialize transformer encoder and prediction heads
         self.encoder, self.projection_head, prediction_heads = self.configure_model()
         self.prediction_heads = nn.ModuleDict(prediction_heads)
@@ -396,6 +406,14 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
     def configure_optimizers(self) -> Dict[Literal["optimizer", "lr_scheduler"], Any]:
         """Configure optimizer to ignore parameters that should remain frozen (e.g. image tokenizer)."""
         return super().configure_optimizers(params=filter(lambda p: p.requires_grad, self.parameters()))
+
+    def setup(self, stage: str) -> None:  # noqa: D102
+        # Call `setup` on the constraint (if it is defined)
+        # Workaround since constraints can't be implemented as callbacks whose `setup` would be called automatically
+        # (because they're "essential" to the module, i.e. they are part of the training loop), but they are mostly
+        # independent of the rest of the module and can be extracted and called in a plug-and-play manner
+        if self.constraint:
+            self.constraint.setup(self.trainer, self, stage=stage)
 
     @auto_move_data
     def tokenize(
@@ -580,16 +598,19 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         in_tokens, avail_mask = self.tokenize(clinical_attrs, img_attrs)  # (N, S, E), (N, S)
 
         metrics = {}
-        supervised_loss, contrastive_loss = 0, 0
+        losses = []
         if self.predict_losses:  # run fully-supervised prediction step
             metrics.update(self._prediction_shared_step(batch, batch_idx, in_tokens, avail_mask))
-            supervised_loss = metrics["s_loss"]
+            losses.append(metrics["s_loss"])
         if self.contrastive_loss:  # run self-supervised contrastive step
             metrics.update(self._contrastive_shared_step(batch, batch_idx, in_tokens, avail_mask))
-            contrastive_loss = metrics["cont_loss"]
+            losses.append(self.hparams.contrastive_loss_weight * metrics["cont_loss"])
+        if self.constraint:  # run self-supervised constraint step
+            metrics.update(self._constraint_shared_step(batch, batch_idx, in_tokens, avail_mask))
+            losses.append(self.hparams.constraint_weight * metrics["cstr_loss"])
 
-        # Compute the weighted sum of the supervised and contrastive loss
-        metrics["loss"] = supervised_loss + (self.hparams.contrastive_loss_weight * contrastive_loss)
+        # Compute the sum of the (weighted) losses
+        metrics["loss"] = sum(losses)
         return metrics
 
     def _prediction_shared_step(
@@ -637,6 +658,16 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         # Compute the contrastive loss/metrics
         metrics = {"cont_loss": self.contrastive_loss(anchor_out_features, corrupted_out_features)}
+
+        return metrics
+
+    def _constraint_shared_step(
+        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor
+    ) -> Dict[str, Tensor]:
+        out_features = self.encode(in_tokens, avail_mask)
+
+        # Compute the latent consistency loss/metrics
+        metrics = {"cstr_loss": self.constraint(batch["id"], out_features)}
 
         return metrics
 
