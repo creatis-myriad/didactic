@@ -1,0 +1,6 @@
+_target_: didactic.tasks.constraints.ClustersConsistencyConstraint
+cdist:
+  _target_: torch.cdist
+  _partial_: True
+clustering_model: ???
+delta: 10
