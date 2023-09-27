@@ -1,0 +1,6 @@
+defaults:
+  - neighborhood_consistency_constraint
+
+# Minimizes MSE between reference and moving affinity matrices of items' encodings
+affinity_matrices_loss:
+  _target_: torch.nn.MSELoss
