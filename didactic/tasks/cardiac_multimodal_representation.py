@@ -101,9 +101,11 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         clinical_attrs: Sequence[ClinicalAttribute | str],
         img_attrs: Sequence[ImageAttribute],
         views: Sequence[ViewEnum] = tuple(ViewEnum),
-        contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         predict_losses: Dict[ClinicalAttribute | str, Callable[[Tensor, Tensor], Tensor]] | DictConfig = None,
+        contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         contrastive_loss_weight: float = 0,
+        mask_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
+        mask_loss_weight: float = 0,
         constraint: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         constraint_weight: float = 0,
         clinical_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
@@ -111,7 +113,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         latent_token: bool = True,
         sequential_pooling: bool = False,
         mtr_p: float | Tuple[float, float] = 0,
-        mt_by_attr: bool = True,
+        mt_by_attr: bool = False,
         attrs_dropout: float | Tuple[float, float] = 0,
         *args,
         **kwargs,
@@ -120,12 +122,16 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         Args:
             embed_dim: Size of the tokens/embedding for all the modalities.
-            contrastive_loss: Self-supervised criterion to use as contrastive loss in a contrastive learning step that
-                mostly follows SCARF (ref: https://arxiv.org/abs/2106.15147).
             predict_losses: Supervised criteria to measure the error between the predicted attributes and their real
                 value.
-            contrastive_loss_weight: When `contrastive_loss` is used for co-training (i.e. when both `contrastive_loss`
-                and `predict_losses` are provided), weight to use on the contrastive loss term.
+            contrastive_loss: Self-supervised criterion to use as contrastive loss between pairs of (N, E) collections
+                of feature vectors, in a contrastive learning step that follows the SCARF pretraining.
+                (see ref: https://arxiv.org/abs/2106.15147)
+            contrastive_loss_weight: Factor by which to weight the `contrastive_loss` in the overall loss.
+            mask_loss: Criterion to use to compare the (N, S) attention mask on the input tokens to a prediction of the
+                mask based on the features extracted by the encoder. This technique was proposed as a self-supervised
+                pretraining method for tabular data in the following paper: https://arxiv.org/abs/2207.03208.
+            mask_loss_weight: Factor by which to weight the `mask_loss` in the overall loss.
             constraint: Self-supervised criterion to use to enforce the encodings to respect arbitrary constraints.
             constraint_weight: When `constraint` is used as an auxiliary loss term, weight to use on the constraint loss
                 term.
@@ -161,12 +167,12 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if not isinstance(attrs_dropout, (int, float)):
             attrs_dropout = tuple(attrs_dropout)
 
-        if contrastive_loss is None and predict_losses is None:
+        if (contrastive_loss is None and mask_loss is None) and predict_losses is None:
             raise ValueError(
-                "You should provide at least one of  `contrastive_loss` or `predict_losses`. Providing only "
-                "`contrastive_loss` will run a self-supervised (pre)training phase. Providing only a `predict_losses` "
-                "will run a fully-supervised training phase. Finally, providing both at the same time will train the "
-                "model in fully-supervised mode, with the contrastive loss as an auxiliary loss term."
+                "You should provide at least one of  `contrastive_loss`, `mask_loss` or `predict_losses`. Providing "
+                "only `contrastive_loss`/`mask_loss` will run a self-supervised (pre)training phase. Providing only "
+                "`predict_losses` will run a fully-supervised training phase. Finally, providing both at the same time "
+                "will train the model in fully-supervised mode, with the self-supervised loss as an auxiliary term."
             )
 
         if latent_token and sequential_pooling:
@@ -258,7 +264,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                     )
                 }
 
-        # Contrastive losses and metrics
+        # Self-supervised losses and metrics
         self.contrastive_loss = None
         if contrastive_loss:
             self.contrastive_loss = (
@@ -266,17 +272,26 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 if isinstance(contrastive_loss, DictConfig)
                 else contrastive_loss
             )
+        self.mask_loss = None
+        if mask_loss:
+            self.mask_loss = hydra.utils.instantiate(mask_loss) if isinstance(mask_loss, DictConfig) else mask_loss
 
         # Latent space consistency loss
         self.constraint = None
         if constraint:
             self.constraint = hydra.utils.instantiate(constraint) if isinstance(constraint, DictConfig) else constraint
 
-        # Initialize transformer encoder and prediction heads
-        self.encoder, self.projection_head, prediction_heads = self.configure_model()
-        self.prediction_heads = nn.ModuleDict(prediction_heads)
+        # Compute shapes relevant for defining the models' architectures
+        self.sequence_length = (
+            len(self.hparams.clinical_attrs)
+            + (len(self.hparams.img_attrs) * len(self.hparams.views))
+            + self.hparams.latent_token
+        )
 
-        # Configure tokenizers and compute shapes relevant for defining the models' architectures
+        # Initialize transformer encoder and self-supervised + prediction heads
+        self.encoder, self.contrastive_head, self.mask_head, self.prediction_heads = self.configure_model()
+
+        # Configure tokenizers and extract relevant info about the models' architectures
         if isinstance(self.encoder, nn.TransformerEncoder):  # Native PyTorch `TransformerEncoder`
             self.nhead = self.encoder.layers[0].self_attn.num_heads
         elif isinstance(self.encoder, autogluon.multimodal.models.ft_transformer.FT_Transformer):  # XTab FT-Transformer
@@ -288,11 +303,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 f"'{self.encoder.__class__.__name__}'. Either change the configuration, or implement the introspection "
                 f"of the number of attention heads for your configuration above this warning."
             )
-        self.sequence_length = (
-            len(self.hparams.clinical_attrs)
-            + (len(self.hparams.img_attrs) * len(self.hparams.views))
-            + self.hparams.latent_token
-        )
 
         if clinical_attrs:
             if isinstance(clinical_tokenizer, DictConfig):
@@ -364,8 +374,10 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         }
         return clinical_attrs, img_attrs
 
-    def configure_model(self) -> Tuple[nn.Module, Optional[nn.Module], Optional[Dict[ClinicalAttribute, nn.Module]]]:
-        """Build the model, which must return a transformer encoder, and projection or prediction heads."""
+    def configure_model(
+        self,
+    ) -> Tuple[nn.Module, Optional[nn.Module], Optional[nn.Module], Optional[nn.ModuleDict]]:
+        """Build the model, which must return a transformer encoder, and self-supervised or prediction heads."""
         # Build the transformer encoder
         encoder = hydra.utils.instantiate(self.hparams.model.get("encoder"))
 
@@ -377,9 +389,14 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         # Build the projection head as an MLP with a single hidden layer and constant width, as proposed in
         # https://arxiv.org/abs/2106.15147
-        projection_head = None
+        contrastive_head = None
         if self.contrastive_loss:
-            projection_head = MLP((num_features,), (num_features,), hidden=(num_features,), dropout=0)
+            contrastive_head = MLP((num_features,), (num_features,), hidden=(num_features,), dropout=0)
+        mask_head = None
+        if self.mask_loss:
+            mask_head = MLP(
+                (num_features,), (self.sequence_length - self.hparams.latent_token,), hidden=(num_features,), dropout=0
+            )
 
         # Build the prediction heads (one by clinical attribute to predict) following the architecture proposed in
         # https://arxiv.org/pdf/2106.11959
@@ -400,8 +417,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 prediction_heads[target_clinical_attr] = nn.Sequential(
                     nn.LayerNorm(num_features), nn.ReLU(), nn.Linear(num_features, output_size)
                 )
+        prediction_heads = nn.ModuleDict(prediction_heads)
 
-        return encoder, projection_head, prediction_heads
+        return encoder, contrastive_head, mask_head, prediction_heads
 
     def configure_optimizers(self) -> Dict[Literal["optimizer", "lr_scheduler"], Any]:
         """Configure optimizer to ignore parameters that should remain frozen (e.g. image tokenizer)."""
@@ -553,7 +571,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             broadcast_attn_vector = attn_vector.transpose(2, 1)  # (N, S, 1) -> (N, 1, S)
             out_features = (broadcast_attn_vector @ out_tokens).squeeze(1)  # (N, S, E) -> (N, E)
         elif self.hparams.latent_token:
-            # Only keep the latent token (i.e. the first token) from the tokens outputted by the encoder
+            # Only keep the latent token (i.e. the last token) from the tokens outputted by the encoder
             out_features = out_tokens[:, -1, :]  # (N, S, E) -> (N, E)
         else:
             out_features = out_tokens.flatten(start_dim=1)  # (N, S, E) -> (N, S * E)
@@ -596,17 +614,21 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         img_attrs = filter_image_attributes(batch, views=self.hparams.views, attributes=self.hparams.img_attrs)
 
         in_tokens, avail_mask = self.tokenize(clinical_attrs, img_attrs)  # (N, S, E), (N, S)
+        out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E) / (N, S * E)
 
         metrics = {}
         losses = []
         if self.predict_losses:  # run fully-supervised prediction step
-            metrics.update(self._prediction_shared_step(batch, batch_idx, in_tokens, avail_mask))
+            metrics.update(self._prediction_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
             losses.append(metrics["s_loss"])
         if self.contrastive_loss:  # run self-supervised contrastive step
-            metrics.update(self._contrastive_shared_step(batch, batch_idx, in_tokens, avail_mask))
+            metrics.update(self._contrastive_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
             losses.append(self.hparams.contrastive_loss_weight * metrics["cont_loss"])
+        if self.mask_loss:  # run self-supervised mask prediction step
+            metrics.update(self._mask_prediction_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
+            losses.append(self.hparams.mask_loss_weight * metrics["mask_loss"])
         if self.constraint:  # run self-supervised constraint step
-            metrics.update(self._constraint_shared_step(batch, batch_idx, in_tokens, avail_mask))
+            metrics.update(self._constraint_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
             losses.append(self.hparams.constraint_weight * metrics["cstr_loss"])
 
         # Compute the sum of the (weighted) losses
@@ -614,10 +636,8 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         return metrics
 
     def _prediction_shared_step(
-        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor
+        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor, out_features: Tensor
     ) -> Dict[str, Tensor]:
-        out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E) / (N, S * E)
-
         # Forward pass through each target's prediction head
         predictions = {
             attr: prediction_head(out_features).squeeze(dim=1)
@@ -651,21 +671,33 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         return metrics
 
     def _contrastive_shared_step(
-        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor
+        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor, out_features: Tensor
     ) -> Dict[str, Tensor]:
+        corrupted_out_features = out_features  # Features from a view corrupted by augmentations
         anchor_out_features = self.encode(in_tokens, avail_mask, apply_augments=False)
-        corrupted_out_features = self.encode(in_tokens, avail_mask)
 
         # Compute the contrastive loss/metrics
-        metrics = {"cont_loss": self.contrastive_loss(anchor_out_features, corrupted_out_features)}
+        metrics = {
+            "cont_loss": self.contrastive_loss(
+                self.contrastive_head(anchor_out_features), self.contrastive_head(corrupted_out_features)
+            )
+        }
+
+        return metrics
+
+    def _mask_prediction_shared_step(
+        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor, out_features: Tensor
+    ) -> Dict[str, Tensor]:
+        mask_prediction = self.mask_head(out_features)
+
+        # Compute the loss on the prediction of the mask
+        metrics = {"mask_loss": self.mask_loss(mask_prediction, avail_mask.float())}
 
         return metrics
 
     def _constraint_shared_step(
-        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor
+        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor, out_features: Tensor
     ) -> Dict[str, Tensor]:
-        out_features = self.encode(in_tokens, avail_mask)
-
         # Compute the latent consistency loss/metrics
         metrics = {"cstr_loss": self.constraint(batch["id"], out_features)}
 
