@@ -1,0 +1,43 @@
+# @package _global_
+
+defaults:
+  - cardinal/cardiac-multimodal-representation
+  - override /task/model: xtab-ft-transformer
+
+trainer:
+  max_steps: 2000
+
+excluded_clinical_attrs: ${oc.dict.keys:task.predict_losses}
+
+task:
+  predict_losses: ???
+  contrastive_loss:
+    _target_: vital.metrics.train.metric.NTXent
+  contrastive_loss_weight: 0.1
+  mtr_p: [ 0.3, 0 ]
+
+  # Architecture parameters to define the same architecture as XTab
+  embed_dim: 192
+  model:
+    encoder:
+      d_token: ${task.embed_dim}
+
+  # Default to the light finetuning describe in XTab's paper
+  optim:
+    optimizer:
+      _target_: torch.optim.AdamW
+      lr: 1e-4
+      weight_decay: 1e-5
+
+# Change checkpoint loading defaults to:
+ckpt: ??? # Make it mandatory to provide a checkpoint
+weights_only: True  # Only load the weights and ignore the hyperparameters
+strict: False # Only load weights where they match the defined network, to only some changes (e.g. heads, etc.)
+
+experiment_dirname: encoder=${hydra:runtime.choices.task/model}/n_clinical_attrs=${builtin.len:${task.clinical_attrs}},n_img_attrs=${op.mul:${builtin.len:${task.views}},${builtin.len:${task.img_attrs}}}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.n_blocks},nhead=${task.model.encoder.attention_n_heads},dropout=${task.model.encoder.attention_dropout},${task.model.encoder.ffn_dropout},${task.model.encoder.residual_dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr},attrs_dropout=${task.attrs_dropout}
+hydra:
+  run:
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune/targets=${oc.dict.keys:task.predict_losses}/${experiment_dirname}/${hydra.job.override_dirname}
+  sweep:
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune
+    subdir: targets=${oc.dict.keys:task.predict_losses}/${experiment_dirname}/${hydra.job.override_dirname}

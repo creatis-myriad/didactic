@@ -3,6 +3,7 @@ import itertools
 import math
 from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
 
+import autogluon.multimodal.models.ft_transformer
 import hydra
 import rtdl
 import torch
@@ -266,7 +267,17 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self.prediction_heads = nn.ModuleDict(prediction_heads)
 
         # Configure tokenizers and compute shapes relevant for defining the models' architectures
-        self.nhead = self.hparams.model.encoder.encoder_layer.nhead
+        if isinstance(self.encoder, nn.TransformerEncoder):  # Native PyTorch `TransformerEncoder`
+            self.nhead = self.encoder.layers[0].self_attn.num_heads
+        elif isinstance(self.encoder, autogluon.multimodal.models.ft_transformer.FT_Transformer):  # XTab FT-Transformer
+            self.nhead = self.encoder.blocks[0]["attention"].n_heads
+        else:
+            raise NotImplementedError(
+                "To instantiate the cardiac multimodal representation task, it is necessary to determine the number of "
+                f"attention heads. However, this is not implemented for the requested encoder configuration: "
+                f"'{self.encoder.__class__.__name__}'. Either change the configuration, or implement the introspection "
+                f"of the number of attention heads for your configuration above this warning."
+            )
         self.sequence_length = (
             len(self.hparams.clinical_attrs)
             + (len(self.hparams.img_attrs) * len(self.hparams.views))
@@ -513,7 +524,10 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         attn_mask = attn_mask.repeat_interleave(self.nhead, dim=0)  # (N * nhead, S, S)
 
         # Add positional embedding to the tokens + forward pass through the transformer encoder
-        out_tokens = self.encoder(tokens + self.positional_embedding, mask=attn_mask)
+        kwargs = {}
+        if isinstance(self.encoder, nn.TransformerEncoder):
+            kwargs["mask"] = attn_mask
+        out_tokens = self.encoder(tokens + self.positional_embedding, **kwargs)
 
         if self.hparams.sequential_pooling:
             # Perform sequential pooling of the transformers' output tokens
