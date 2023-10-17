@@ -33,3 +33,4 @@ medpy
 torchinfo
 torchmetrics
 albumentations
+pacmap
