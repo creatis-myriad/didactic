@@ -18,6 +18,11 @@ data:
   patients_kwargs:
     views: [A4C, A2C]
 
+  predict:
+    _target_: didactic.data.cardinal.predict.CardiacSequenceAttributesPredictionWriter
+    write_path: ${sys.getcwd:}/prediction_plots
+    umap_embedding_kwargs: null
+
 task:
   _target_: didactic.tasks.cardiac_sequence_attrs_ae.CardiacSequenceAttributesAutoencoder
   views: ${data.patients_kwargs.views}
