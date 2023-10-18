@@ -65,6 +65,48 @@ def build_clusterings_dataframe(
     return clusterings_data
 
 
+def build_knn_dataframe(patients: Patients, kneighbors: np.ndarray, cat_to_num: bool = False) -> pd.DataFrame:
+    """Builds a dataframe to store the data of the nearest neighbors of each patient, repeating patients as necessary.
+
+    Args:
+        patients: Collection of patients to include in the dataframe.
+        kneighbors: Array (of `Patient.Id`s) of shape `(n_encodings, n_patients, n_neighbors)` containing the IDs of the
+            nearest neighbors of each patient for each encoding.
+        cat_to_num: Whether to convert the categorical attributes to numerical labels, based on the order of the
+            categories.
+
+    Returns:
+        Dataframe, with a multi-index with levels `(model, patient_id, neighbor_id)`, containing the data of the nearest
+        neighbors of each patient for each model, repeating patients as necessary.
+    """
+    data = patients.to_dataframe()
+
+    if cat_to_num:
+        # Convert the categorical attributes to numerical labels
+        def _to_num(attr_data: pd.Series) -> pd.Series:
+            if attr_data.dtype == "category":
+                attr_data = attr_data.cat.codes
+            return attr_data
+
+        data = data.apply(_to_num)
+
+    # For each encoding, extract the data of the nearest neighbors of each patient
+    neigh_data = pd.concat(
+        {
+            f"{enc_idx}": pd.concat(
+                {
+                    patient_id: data.loc[kneighbors_ids]
+                    for patient_id, kneighbors_ids in zip(patients, enc_kneighbors_ids)
+                }
+            )
+            for enc_idx, enc_kneighbors_ids in enumerate(kneighbors)
+        },
+        names=["model", "patient_id", "neighbor_id"],
+    )
+
+    return neigh_data
+
+
 def build_img_attr_by_patient_group_dataframe(
     patients_groups: Mapping[Hashable, Iterable[Patient]],
     attr: Tuple[ViewEnum, ImageAttribute],
