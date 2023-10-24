@@ -1,0 +1,182 @@
+# @package _global_
+
+defaults:
+  - override /task/model: cardinal-ft-transformer
+  - override /task/optim: null
+  - override /data: cardinal
+
+test: True
+
+trainer:
+  devices: 1
+  precision: bf16-mixed
+
+data:
+  batch_size: 128
+  patients_kwargs:
+    views: [A4C, A2C]
+  process_patient_kwargs:
+    clinical_attributes:
+      - ef
+      - edv
+      - esv
+      - age
+      - sex
+      - bmi
+      - hf
+      - cad
+      - pad
+      - stroke
+      - tobacco
+      - diabetes
+      - dyslipidemia
+      - etiology
+      - ddd
+      - bradycardic
+      - ace_inhibitor
+      - arb
+      - tz_diuretic
+      - central_acting
+      - beta_blocker
+      - spironolactone
+      - alpha_blocker
+      - ccb
+      - sbp_24
+      - dbp_24
+      - pp_24
+      - sbp_tte
+      - dbp_tte
+      - pp_tte
+      - ht_severity
+      - ht_grade
+      - hr_tte
+      - creat
+      - gfr
+      - nt_probnp
+      - nt_probnp_group
+      - e_velocity
+      - a_velocity
+      - mv_dt
+      - lateral_e_prime
+      - septal_e_prime
+      - reduced_e_prime
+      - e_e_prime_ratio
+      - d_dysfunction_e_e_prime_ratio
+      - la_volume
+      - dilated_la
+      - ph_vmax_tr
+      - lvm_ind
+      - lvh
+      - ivs_d
+      - lvid_d
+      - pw_d
+      - diastolic_dysfunction_param_sum
+      - diastolic_dysfunction
+      - ht_cm
+    image_attributes:
+      - gls
+      - lv_area
+      - lv_length
+      - myo_area
+
+  predict:
+    _target_: didactic.data.cardinal.predict.CardiacRepresentationPredictionWriter
+    write_path: ${sys.getcwd:}/predictions
+    hue_attrs: ${data.process_patient_kwargs.clinical_attributes}
+
+excluded_clinical_attrs: []
+# Determine the number of clinical + image attributes used by the model based on their respective configs
+n_clinical_attrs: ${builtin.len:${task.clinical_attrs}}
+n_img_attrs: ${op.mul:${builtin.len:${task.views}},${builtin.len:${task.img_attrs}}}
+
+task:
+  _target_: didactic.tasks.cardiac_multimodal_representation.CardiacMultimodalRepresentationTask
+  embed_dim: 8
+  clinical_attrs: ${list.remove:${data.process_patient_kwargs.clinical_attributes},${excluded_clinical_attrs}}
+  img_attrs: ${data.process_patient_kwargs.image_attributes}
+  views: ${data.patients_kwargs.views}
+  latent_token: True
+  sequential_pooling: False
+  mtr_p: 0
+  mt_by_attr: False
+  attrs_dropout: 0
+
+  clinical_tokenizer:
+    _target_: rtdl.FeatureTokenizer
+    d_token: ${task.embed_dim}
+
+  img_tokenizer:
+    _target_: didactic.tasks.cardiac_multimodal_representation.CardiacSequenceAttributesTokenizer
+    resample_dim: 128
+    embed_dim: ${task.embed_dim}
+    num_attrs: ${op.mul:${builtin.len:${task.views}},${builtin.len:${task.img_attrs}}}
+
+  optim:
+    optimizer:
+      _target_: torch.optim.AdamW
+
+  model_summary_mode: train
+
+callbacks:
+  learning_rate_finder:
+    _target_: pytorch_lightning.callbacks.LearningRateFinder
+
+  log_encoder_hist:
+    _target_: vital.callbacks.debug.LayersHistogramsLogger
+    layer_types: [torch.nn.MultiheadAttention, torch.nn.LayerNorm, torch.nn.Linear]
+    submodule: encoder
+    log_every_n_steps: ${oc.select:trainer.log_every_n_steps,50}
+
+# Temporarily disable attention weights logging, since the update to PyTorch 2-series has broken our method for
+# collecting attention weights by using `nn.Module`s forward hooks. The hooks are apparently not called anymore.
+# For more details, see this issue: https://github.com/pytorch/pytorch/issues/102374
+#  log_encoder_attn_weights:
+#    _target_: didactic.callbacks.debug.AttentionWeightsLogger
+#    submodule: encoder
+#    log_every_n_steps: ${oc.select:trainer.log_every_n_steps,50}
+#    attention_rollout_kwargs:
+#      includes_cls_token: ${task.latent_token}
+
+experiment_dirname: encoder=${hydra:runtime.choices.task/model}/n_clinical_attrs=${builtin.len:${task.clinical_attrs}},n_img_attrs=${op.mul:${builtin.len:${task.views}},${builtin.len:${task.img_attrs}}}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.num_layers},nhead=${task.model.encoder.encoder_layer.nhead},dropout=${task.model.encoder.encoder_layer.dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr},attrs_dropout=${task.attrs_dropout}
+hydra:
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - hydra/launcher
+          - hydra.launcher.n_jobs
+          - hydra.run.dir
+          - hydra.sweep.dir
+          - hydra.sweep.subdir
+
+          - experiment
+          - trainer.enable_progress_bar
+          - trainer.max_epochs
+
+          - callbacks.learning_rate_finder
+          - callbacks.log_encoder_hist
+          - callbacks.log_encoder_attn_weights
+
+          - ckpt
+
+          - data
+          - excluded_clinical_attrs
+          - task.clinical_attrs
+          - task.img_attrs
+          - task.predict_losses
+          - task.contrastive_loss._target_
+          - task.contrastive_loss_weight
+          - task.mask_loss._target_
+          - task.mask_loss_weight
+          - task/constraint
+          - task.constraint.clustering_model
+          - task.mtr_p
+          - task.mt_by_attr
+          - task.attrs_dropout
+
+          - task.embed_dim
+          - task/model
+          - task.model.encoder.num_layers
+          - task.model.encoder.encoder_layer.nhead
+          - task.model.encoder.encoder_layer.dim_feedforward
+          - task.model.encoder.encoder_layer.dropout

@@ -1,0 +1,3 @@
+transformer_encoder_freeze:
+  _target_: didactic.callbacks.finetune.TransformerEncoderFreeze
+  finetune_layers: null

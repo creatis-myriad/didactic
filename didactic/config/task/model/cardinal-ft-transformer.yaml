@@ -1,0 +1,10 @@
+defaults:
+  - torch-transformer-encoder
+
+encoder:
+  num_layers: 4
+  encoder_layer:
+    d_model: ${task.embed_dim}
+    nhead: 2
+    dim_feedforward: ${op.mul:1.5,${task.model.encoder.encoder_layer.d_model},int}
+    dropout: 0
