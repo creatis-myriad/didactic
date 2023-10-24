@@ -23,6 +23,8 @@ from vital.models.classification.mlp import MLP
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
+from didactic.models.layers import PositionalEncoding, SequentialPooling
+
 CardiacAttribute = ClinicalAttribute | Tuple[ViewEnum, ImageAttribute]
 
 
@@ -326,8 +328,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         # Initialize modules/parameters dependent on the encoder's configuration
         # Initialize learnable positional embedding parameters
-        self.positional_embedding = Parameter(torch.empty(1, self.sequence_length, self.hparams.embed_dim))
-        init.trunc_normal_(self.positional_embedding, std=0.2)
+        self.positional_encoding = PositionalEncoding(self.sequence_length, self.hparams.embed_dim)
 
         if self.hparams.latent_token:
             # Initialize parameters of the latent token
@@ -355,8 +356,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 self.mask_token = _init_mask_token()
 
         if self.hparams.sequential_pooling:
-            # Initialize parameters used in sequential pooling
-            self.attention_pool = nn.Linear(self.hparams.embed_dim, 1)
+            self.sequential_pooling = SequentialPooling(self.hparams.embed_dim)
 
     @property
     def example_input_array(
@@ -563,13 +563,11 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         kwargs = {}
         if isinstance(self.encoder, nn.TransformerEncoder):
             kwargs["mask"] = attn_mask
-        out_tokens = self.encoder(tokens + self.positional_embedding, **kwargs)
+        out_tokens = self.encoder(self.positional_encoding(tokens), **kwargs)
 
         if self.hparams.sequential_pooling:
             # Perform sequential pooling of the transformers' output tokens
-            attn_vector = F.softmax(self.attention_pool(out_tokens), dim=1)  # (N, S, 1)
-            broadcast_attn_vector = attn_vector.transpose(2, 1)  # (N, S, 1) -> (N, 1, S)
-            out_features = (broadcast_attn_vector @ out_tokens).squeeze(1)  # (N, S, E) -> (N, E)
+            out_features = self.sequential_pooling(out_tokens)  # (N, S, E) -> (N, E)
         elif self.hparams.latent_token:
             # Only keep the latent token (i.e. the last token) from the tokens outputted by the encoder
             out_features = out_tokens[:, -1, :]  # (N, S, E) -> (N, E)

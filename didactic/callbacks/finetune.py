@@ -71,7 +71,7 @@ class TransformerEncoderFreeze(Callback):
             # If encoder's first layer is frozen, then it is also necessary to freeze everything upstream of
             # the encoder (e.g. CLS token, tokenizers, positional embedding, etc.) to make sure the encoder's
             # inputs remain the same
-            params_to_freeze.append(pl_module.positional_embedding)
+            params_to_freeze.append(pl_module.positional_encoding)
 
             # Check if tokenizers are models before marking them to be frozen, so that we'll not try to freeze
             # other possible types of tokenizers that are not `nn.Module`s (e.g. functions)
@@ -84,7 +84,7 @@ class TransformerEncoderFreeze(Callback):
             if pl_module.hparams.latent_token:
                 modules_to_freeze.append(pl_module.latent_token)
             if pl_module.hparams.sequential_pooling:
-                modules_to_freeze.append(pl_module.attention_pool)
+                modules_to_freeze.append(pl_module.sequential_pooling)
 
         if layers_to_freeze == list(range(num_layers)):
             # If all layers of the encoder are frozen
