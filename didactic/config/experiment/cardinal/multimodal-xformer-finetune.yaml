@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - cardinal/cardiac-multimodal-representation
+  - cardinal/multimodal-xformer
   - /callbacks:
       - transformer_encoder_freeze
 
@@ -12,11 +12,15 @@ excluded_clinical_attrs: ${oc.dict.keys:task.predict_losses}
 
 task:
   predict_losses: ???
-  attrs_dropout: [0.1, 0]
+  contrastive_loss:
+    _target_: vital.metrics.train.metric.NTXent
+  contrastive_loss_weight: 0
+  attrs_dropout: [ 0.1, 0 ]
+  mtr_p: [ 0.3, 0 ]
 
 callbacks:
   transformer_encoder_freeze:
-    finetune_layers: []
+    finetune_layers: null
 
 # Change checkpoint loading defaults to:
 ckpt: ??? # Make it mandatory to provide a checkpoint
@@ -25,7 +29,7 @@ strict: False # Only load weights where they match the defined network, to only 
 
 hydra:
   run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/head/targets=${oc.dict.keys:task.predict_losses}/${experiment_dirname}/${hydra.job.override_dirname}
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/finetune/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/${hydra.job.override_dirname}
   sweep:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/head
-    subdir: targets=${oc.dict.keys:task.predict_losses}/${experiment_dirname}/${hydra.job.override_dirname}
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/finetune
+    subdir: ${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/${hydra.job.override_dirname}

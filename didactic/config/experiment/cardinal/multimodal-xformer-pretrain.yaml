@@ -1,0 +1,22 @@
+# @package _global_
+
+defaults:
+  - cardinal/multimodal-xformer
+
+trainer:
+  max_epochs: 2500
+
+excluded_clinical_attrs: ???
+
+task:
+  contrastive_loss:
+    _target_: vital.metrics.train.metric.NTXent
+  contrastive_loss_weight: 1
+  mtr_p: [0.3, 0]
+
+hydra:
+  run:
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/pretrain/${experiment_dirname}/excluded_clinical_attrs=${excluded_clinical_attrs}/${hydra.job.override_dirname}
+  sweep:
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/pretrain
+    subdir: ${experiment_dirname}/excluded_clinical_attrs=${excluded_clinical_attrs}/${hydra.job.override_dirname}
