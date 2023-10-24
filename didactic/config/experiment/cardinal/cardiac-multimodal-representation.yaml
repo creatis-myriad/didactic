@@ -75,9 +75,13 @@ data:
       - ht_cm
     image_attributes:
       - gls
+      - gls_left
+      - gls_right
       - lv_area
       - lv_length
       - myo_area
+      - myo_area_left
+      - myo_area_right
 
   predict:
     _target_: didactic.data.cardinal.predict.CardiacRepresentationPredictionWriter
