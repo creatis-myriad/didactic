@@ -10,7 +10,6 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
 from rtdl import FeatureTokenizer
-from rtdl.modules import _TokenInitialization
 from torch import Tensor, nn
 from torch.nn import Parameter, ParameterDict, init
 from torchmetrics.functional import accuracy, mean_absolute_error
@@ -26,72 +25,6 @@ from vital.utils.decorators import auto_move_data
 from didactic.models.layers import PositionalEncoding, SequentialPooling
 
 CardiacAttribute = ClinicalAttribute | Tuple[ViewEnum, ImageAttribute]
-
-
-class CardiacSequenceAttributesTokenizer(nn.Module):
-    """Tokenizer that pre-processes attributes extracted from cardiac sequences for a transformer model."""
-
-    def __init__(self, resample_dim: int, embed_dim: int = None, num_attrs: int = None):
-        """Initializes class instance.
-
-        Args:
-            resample_dim: Target size for a simple interpolation resampling of the attributes. Mutually exclusive
-                parameter with `cardiac_sequence_attrs_model`.
-            embed_dim: Size of the embedding in which to project the resampled attributes. If not specified, no
-                projection is learned and the embedding is directly the resampled attributes. Only used when
-                `resample_dim` is provided.
-            num_attrs: Number of attributes to tokenize. Only required when `embed_dim` is not None to initialize the
-                weights and bias parameters of the learnable embeddings.
-        """
-        if embed_dim is not None and num_attrs is None:
-            raise ValueError(
-                "When opting for the resample+project method of tokenizing image attributes, you must indicate the "
-                "expected attributes to initialize the weights and biases for the projection."
-            )
-
-        super().__init__()
-
-        self.resample_dim = resample_dim
-
-        self.weight = None
-        if embed_dim:
-            initialization_ = _TokenInitialization.from_str("uniform")
-            self.weight = nn.Parameter(Tensor(num_attrs, resample_dim, embed_dim))
-            self.bias = nn.Parameter(Tensor(num_attrs, embed_dim))
-            for parameter in [self.weight, self.bias]:
-                initialization_.apply(parameter, embed_dim)
-
-    @torch.inference_mode()
-    def forward(self, attrs: Dict[Any, Tensor] | Sequence[Tensor]) -> Tensor:
-        """Embeds image attributes by resampling them, and optionally projecting them to the target embedding.
-
-        Args:
-            attrs: (K: S, V: (N, ?)) or S * (N, ?): Attributes to tokenize, where the dimensionality of each attribute
-                can vary.
-
-        Returns:
-            (N, S, E), Tokenized version of the attributes.
-        """
-        if not isinstance(attrs, dict):
-            attrs = {idx: attr for idx, attr in enumerate(attrs)}
-
-        # Resample attributes to make sure all of them are of `resample_dim`
-        for attr_id, attr in attrs.items():
-            if attr.shape[-1] != self.resample_dim:
-                # Temporarily reshape attribute batch tensor to be 3D to be able to use torch's interpolation
-                # (N, ?) -> (N, `resample_dim`)
-                attrs[attr_id] = F.interpolate(attr.unsqueeze(1), size=self.resample_dim, mode="linear").squeeze(dim=1)
-
-        # Now that all attributes are of the same shape, merge them into one single tensor
-        x = torch.stack(list(attrs.values()), dim=1)  # (N, S, L)
-
-        if self.weight is not None:
-            # Broadcast along all but the last two dimensions, which perform the matrix multiply
-            # (N, S, 1, L) @ (S, L, E) -> (N, S, E)
-            x = (x[..., None, :] @ self.weight).squeeze(dim=-2)
-            x = x + self.bias[None]
-
-        return x
 
 
 class CardiacMultimodalRepresentationTask(SharedStepsTask):

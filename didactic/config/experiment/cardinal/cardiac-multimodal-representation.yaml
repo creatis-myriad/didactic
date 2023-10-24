@@ -1,6 +1,7 @@
 # @package _global_
 
 defaults:
+  - /task/img_tokenizer/model: linear-embedding
   - override /task/model: cardinal-ft-transformer
   - override /task/optim: null
   - override /data: cardinal
@@ -110,10 +111,8 @@ task:
     d_token: ${task.embed_dim}
 
   img_tokenizer:
-    _target_: didactic.tasks.cardiac_multimodal_representation.CardiacSequenceAttributesTokenizer
-    resample_dim: 128
-    embed_dim: ${task.embed_dim}
-    num_attrs: ${op.mul:${builtin.len:${task.views}},${builtin.len:${task.img_attrs}}}
+    _target_: didactic.models.time_series.TimeSeriesEmbedding
+    resample_dim: 64
 
   optim:
     optimizer:
@@ -141,7 +140,7 @@ callbacks:
 #    attention_rollout_kwargs:
 #      includes_cls_token: ${task.latent_token}
 
-experiment_dirname: encoder=${hydra:runtime.choices.task/model}/n_clinical_attrs=${builtin.len:${task.clinical_attrs}},n_img_attrs=${op.mul:${builtin.len:${task.views}},${builtin.len:${task.img_attrs}}}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.num_layers},nhead=${task.model.encoder.encoder_layer.nhead},dropout=${task.model.encoder.encoder_layer.dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr},attrs_dropout=${task.attrs_dropout}
+experiment_dirname: encoder=${hydra:runtime.choices.task/model}/img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.num_layers},nhead=${task.model.encoder.encoder_layer.nhead},dropout=${task.model.encoder.encoder_layer.dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr},attrs_dropout=${task.attrs_dropout}
 hydra:
   job:
     config:
@@ -179,6 +178,8 @@ hydra:
           - task.attrs_dropout
 
           - task.embed_dim
+          - task/img_tokenizer/model
+
           - task/model
           - task.model.encoder.num_layers
           - task.model.encoder.encoder_layer.nhead

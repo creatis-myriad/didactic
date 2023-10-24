@@ -1,0 +1,3 @@
+_target_: torch.nn.Linear
+in_features: ${task.img_tokenizer.resample_dim}
+out_features: ${task.embed_dim}
