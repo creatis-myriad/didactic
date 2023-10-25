@@ -359,6 +359,8 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         return super().configure_optimizers(params=filter(lambda p: p.requires_grad, self.parameters()))
 
     def setup(self, stage: str) -> None:  # noqa: D102
+        super().setup(stage)
+
         # Call `setup` on the constraint (if it is defined)
         # Workaround since constraints can't be implemented as callbacks whose `setup` would be called automatically
         # (because they're "essential" to the module, i.e. they are part of the training loop), but they are mostly
