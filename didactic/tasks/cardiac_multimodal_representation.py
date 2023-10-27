@@ -39,8 +39,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         predict_losses: Dict[ClinicalAttribute | str, Callable[[Tensor, Tensor], Tensor]] | DictConfig = None,
         contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         contrastive_loss_weight: float = 0,
-        mask_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
-        mask_loss_weight: float = 0,
         constraint: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         constraint_weight: float = 0,
         clinical_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
@@ -63,10 +61,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 of feature vectors, in a contrastive learning step that follows the SCARF pretraining.
                 (see ref: https://arxiv.org/abs/2106.15147)
             contrastive_loss_weight: Factor by which to weight the `contrastive_loss` in the overall loss.
-            mask_loss: Criterion to use to compare the (N, S) attention mask on the input tokens to a prediction of the
-                mask based on the features extracted by the encoder. This technique was proposed as a self-supervised
-                pretraining method for tabular data in the following paper: https://arxiv.org/abs/2207.03208.
-            mask_loss_weight: Factor by which to weight the `mask_loss` in the overall loss.
             constraint: Self-supervised criterion to use to enforce the encodings to respect arbitrary constraints.
             constraint_weight: When `constraint` is used as an auxiliary loss term, weight to use on the constraint loss
                 term.
@@ -102,12 +96,12 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if not isinstance(attrs_dropout, (int, float)):
             attrs_dropout = tuple(attrs_dropout)
 
-        if (contrastive_loss is None and mask_loss is None) and predict_losses is None:
+        if contrastive_loss is None and predict_losses is None:
             raise ValueError(
-                "You should provide at least one of  `contrastive_loss`, `mask_loss` or `predict_losses`. Providing "
-                "only `contrastive_loss`/`mask_loss` will run a self-supervised (pre)training phase. Providing only "
-                "`predict_losses` will run a fully-supervised training phase. Finally, providing both at the same time "
-                "will train the model in fully-supervised mode, with the self-supervised loss as an auxiliary term."
+                "You should provide at least one of  `contrastive_loss` or `predict_losses`. Providing only "
+                "`contrastive_loss` will run a self-supervised (pre)training phase. Providing only `predict_losses` "
+                "will run a fully-supervised training phase. Finally, providing both at the same time will train the "
+                "model in fully-supervised mode, with the self-supervised loss as an auxiliary term."
             )
 
         if latent_token and sequential_pooling:
@@ -207,9 +201,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 if isinstance(contrastive_loss, DictConfig)
                 else contrastive_loss
             )
-        self.mask_loss = None
-        if mask_loss:
-            self.mask_loss = hydra.utils.instantiate(mask_loss) if isinstance(mask_loss, DictConfig) else mask_loss
 
         # Latent space consistency loss
         self.constraint = None
@@ -224,7 +215,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         )
 
         # Initialize transformer encoder and self-supervised + prediction heads
-        self.encoder, self.contrastive_head, self.mask_head, self.prediction_heads = self.configure_model()
+        self.encoder, self.contrastive_head, self.prediction_heads = self.configure_model()
 
         # Configure tokenizers and extract relevant info about the models' architectures
         if isinstance(self.encoder, nn.TransformerEncoder):  # Native PyTorch `TransformerEncoder`
@@ -309,7 +300,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
     def configure_model(
         self,
-    ) -> Tuple[nn.Module, Optional[nn.Module], Optional[nn.Module], Optional[nn.ModuleDict]]:
+    ) -> Tuple[nn.Module, Optional[nn.Module], Optional[nn.ModuleDict]]:
         """Build the model, which must return a transformer encoder, and self-supervised or prediction heads."""
         # Build the transformer encoder
         encoder = hydra.utils.instantiate(self.hparams.model.get("encoder"))
@@ -325,11 +316,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         contrastive_head = None
         if self.contrastive_loss:
             contrastive_head = MLP((num_features,), (num_features,), hidden=(num_features,), dropout=0)
-        mask_head = None
-        if self.mask_loss:
-            mask_head = MLP(
-                (num_features,), (self.sequence_length - self.hparams.latent_token,), hidden=(num_features,), dropout=0
-            )
 
         # Build the prediction heads (one by clinical attribute to predict) following the architecture proposed in
         # https://arxiv.org/pdf/2106.11959
@@ -352,7 +338,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 )
         prediction_heads = nn.ModuleDict(prediction_heads)
 
-        return encoder, contrastive_head, mask_head, prediction_heads
+        return encoder, contrastive_head, prediction_heads
 
     def configure_optimizers(self) -> Dict[Literal["optimizer", "lr_scheduler"], Any]:
         """Configure optimizer to ignore parameters that should remain frozen (e.g. image tokenizer)."""
@@ -557,9 +543,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if self.contrastive_loss:  # run self-supervised contrastive step
             metrics.update(self._contrastive_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
             losses.append(self.hparams.contrastive_loss_weight * metrics["cont_loss"])
-        if self.mask_loss:  # run self-supervised mask prediction step
-            metrics.update(self._mask_prediction_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
-            losses.append(self.hparams.mask_loss_weight * metrics["mask_loss"])
         if self.constraint:  # run self-supervised constraint step
             metrics.update(self._constraint_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
             losses.append(self.hparams.constraint_weight * metrics["cstr_loss"])
@@ -615,16 +598,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 self.contrastive_head(anchor_out_features), self.contrastive_head(corrupted_out_features)
             )
         }
-
-        return metrics
-
-    def _mask_prediction_shared_step(
-        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor, out_features: Tensor
-    ) -> Dict[str, Tensor]:
-        mask_prediction = self.mask_head(out_features)
-
-        # Compute the loss on the prediction of the mask
-        metrics = {"mask_loss": self.mask_loss(mask_prediction, avail_mask.float())}
 
         return metrics
 
