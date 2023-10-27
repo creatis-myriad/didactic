@@ -39,8 +39,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         predict_losses: Dict[ClinicalAttribute | str, Callable[[Tensor, Tensor], Tensor]] | DictConfig = None,
         contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         contrastive_loss_weight: float = 0,
-        constraint: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
-        constraint_weight: float = 0,
         clinical_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
         img_tokenizer: Optional[nn.Module | DictConfig] = None,
         latent_token: bool = True,
@@ -61,9 +59,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 of feature vectors, in a contrastive learning step that follows the SCARF pretraining.
                 (see ref: https://arxiv.org/abs/2106.15147)
             contrastive_loss_weight: Factor by which to weight the `contrastive_loss` in the overall loss.
-            constraint: Self-supervised criterion to use to enforce the encodings to respect arbitrary constraints.
-            constraint_weight: When `constraint` is used as an auxiliary loss term, weight to use on the constraint loss
-                term.
             clinical_attrs: Clinical attributes to provide to the model.
             img_attrs: Image attributes to provide to the model.
             views: Views from which to include image attributes.
@@ -202,11 +197,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 else contrastive_loss
             )
 
-        # Latent space consistency loss
-        self.constraint = None
-        if constraint:
-            self.constraint = hydra.utils.instantiate(constraint) if isinstance(constraint, DictConfig) else constraint
-
         # Compute shapes relevant for defining the models' architectures
         self.sequence_length = (
             len(self.hparams.clinical_attrs)
@@ -343,16 +333,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
     def configure_optimizers(self) -> Dict[Literal["optimizer", "lr_scheduler"], Any]:
         """Configure optimizer to ignore parameters that should remain frozen (e.g. image tokenizer)."""
         return super().configure_optimizers(params=filter(lambda p: p.requires_grad, self.parameters()))
-
-    def setup(self, stage: str) -> None:  # noqa: D102
-        super().setup(stage)
-
-        # Call `setup` on the constraint (if it is defined)
-        # Workaround since constraints can't be implemented as callbacks whose `setup` would be called automatically
-        # (because they're "essential" to the module, i.e. they are part of the training loop), but they are mostly
-        # independent of the rest of the module and can be extracted and called in a plug-and-play manner
-        if self.constraint:
-            self.constraint.setup(self.trainer, self, stage=stage)
 
     @auto_move_data
     def tokenize(
@@ -543,9 +523,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if self.contrastive_loss:  # run self-supervised contrastive step
             metrics.update(self._contrastive_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
             losses.append(self.hparams.contrastive_loss_weight * metrics["cont_loss"])
-        if self.constraint:  # run self-supervised constraint step
-            metrics.update(self._constraint_shared_step(batch, batch_idx, in_tokens, avail_mask, out_features))
-            losses.append(self.hparams.constraint_weight * metrics["cstr_loss"])
 
         # Compute the sum of the (weighted) losses
         metrics["loss"] = sum(losses)
@@ -598,14 +575,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 self.contrastive_head(anchor_out_features), self.contrastive_head(corrupted_out_features)
             )
         }
-
-        return metrics
-
-    def _constraint_shared_step(
-        self, batch: PatientData, batch_idx: int, in_tokens: Tensor, avail_mask: Tensor, out_features: Tensor
-    ) -> Dict[str, Tensor]:
-        # Compute the latent consistency loss/metrics
-        metrics = {"cstr_loss": self.constraint(batch["id"], out_features)}
 
         return metrics
 
