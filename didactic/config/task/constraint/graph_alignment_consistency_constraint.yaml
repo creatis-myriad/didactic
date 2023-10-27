@@ -1,9 +1,0 @@
-defaults:
-  - neighborhood_consistency_constraint
-
-# Optimizes graph alignment between reference and moving affinity matrices of items' encodings
-affinity_matrices_loss:
-  _target_: vital.metrics.train.functional.graph_alignment_score
-  _partial_: True
-  zero_diagonals: True
-  as_loss: True
