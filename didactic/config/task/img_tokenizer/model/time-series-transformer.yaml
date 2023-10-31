@@ -1,0 +1,42 @@
+_target_: torch.nn.Sequential
+_args_:
+  - _target_: collections.OrderedDict
+
+    expand_feat_dim:
+      _target_: vital.models.layers.Lambda
+      fn:
+        _target_: torch.unsqueeze
+        _partial_: True
+      dim: -1
+
+    upsampling:
+      _target_: torch.nn.Linear
+      in_features: 1
+      out_features: ${task.embed_dim}
+
+    positional_encoding:
+      _target_: didactic.models.layers.PositionalEncoding
+      sequence_len: ${task.img_tokenizer.resample_dim}
+      d_model: ${task.embed_dim}
+
+    transformer_encoder:
+      _target_: torch.nn.TransformerEncoder
+      num_layers: 2
+
+      norm:
+        _target_: torch.nn.LayerNorm
+        normalized_shape: ${task.embed_dim}
+
+      encoder_layer:
+        _target_: torch.nn.TransformerEncoderLayer
+        d_model: ${task.embed_dim}
+        nhead: ${oc.select:task.model.encoder.attention_n_heads,${oc.select:task.model.encoder.encoder_layer.nhead,???}}
+        dim_feedforward: ${op.mul:1.5,${task.embed_dim},int}
+        dropout: 0.1
+        activation: relu
+        batch_first: True
+        norm_first: True
+
+    sequential_pooling:
+      _target_: didactic.models.layers.SequentialPooling
+      d_model: ${task.embed_dim}
