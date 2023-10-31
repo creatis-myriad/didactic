@@ -13,7 +13,6 @@ task:
   contrastive_loss:
     _target_: vital.metrics.train.metric.NTXent
   contrastive_loss_weight: 0
-  attrs_dropout: [ 0.1, 0 ]
   mtr_p: [ 0.3, 0 ]
 
 hydra:
