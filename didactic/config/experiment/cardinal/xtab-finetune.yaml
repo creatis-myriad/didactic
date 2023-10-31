@@ -13,7 +13,7 @@ task:
   predict_losses: ???
   contrastive_loss:
     _target_: vital.metrics.train.metric.NTXent
-  contrastive_loss_weight: 0.1
+  contrastive_loss_weight: 0
   mtr_p: [ 0.3, 0 ]
 
   # Architecture parameters to define the same architecture as XTab
