@@ -124,21 +124,6 @@ callbacks:
   learning_rate_finder:
     _target_: pytorch_lightning.callbacks.LearningRateFinder
 
-  log_encoder_hist:
-    _target_: vital.callbacks.debug.LayersHistogramsLogger
-    layer_types: [torch.nn.MultiheadAttention, torch.nn.LayerNorm, torch.nn.Linear]
-    submodule: encoder
-    log_every_n_steps: ${oc.select:trainer.log_every_n_steps,50}
-
-# Temporarily disable attention weights logging, since the update to PyTorch 2-series has broken our method for
-# collecting attention weights by using `nn.Module`s forward hooks. The hooks are apparently not called anymore.
-# For more details, see this issue: https://github.com/pytorch/pytorch/issues/102374
-#  log_encoder_attn_weights:
-#    _target_: didactic.callbacks.debug.AttentionWeightsLogger
-#    submodule: encoder
-#    log_every_n_steps: ${oc.select:trainer.log_every_n_steps,50}
-#    attention_rollout_kwargs:
-#      includes_cls_token: ${task.latent_token}
 
 experiment_dirname: encoder=${hydra:runtime.choices.task/model}/img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.num_layers},nhead=${task.model.encoder.encoder_layer.nhead},dropout=${task.model.encoder.encoder_layer.dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr},attrs_dropout=${task.attrs_dropout}
 hydra:
