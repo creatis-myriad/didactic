@@ -20,7 +20,7 @@ from vital.data.cardinal.utils.attributes import CLINICAL_CAT_ATTR_LABELS
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
-from didactic.models.layers import PositionalEncoding, SequentialPooling, UnimodalLogitsHead
+from didactic.models.layers import FTPredictionHead, PositionalEncoding, SequentialPooling, UnimodalLogitsHead
 
 CardiacAttribute = ClinicalAttribute | Tuple[ViewEnum, ImageAttribute]
 
@@ -319,9 +319,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                         self.hparams.embed_dim, output_size, **self.hparams.unimodal_head_kwargs
                     )
                 else:
-                    prediction_heads[target_clinical_attr] = nn.Sequential(
-                        nn.LayerNorm(self.hparams.embed_dim), nn.ReLU(), nn.Linear(self.hparams.embed_dim, output_size)
-                    )
+                    prediction_heads[target_clinical_attr] = FTPredictionHead(self.hparams.embed_dim, output_size)
 
         return encoder, contrastive_head, prediction_heads
 

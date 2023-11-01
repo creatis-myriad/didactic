@@ -62,6 +62,31 @@ class SequentialPooling(nn.Module):
         return pooled_x
 
 
+class FTPredictionHead(nn.Module):
+    """Prediction head architecture described in the Feature Tokenizer transformer (FT-Transformer) paper."""
+
+    def __init__(self, in_features: int, out_features: int):
+        """Initializes class instance.
+
+        Args:
+            in_features: Number of features in the input feature vector.
+            out_features: Number of features to output.
+        """
+        super().__init__()
+        self.head = nn.Sequential(nn.LayerNorm(in_features), nn.ReLU(), nn.Linear(in_features, out_features))
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Predicts unnormalized features from a feature vector input.
+
+        Args:
+            x: (N, `in_features`), Batch of feature vectors.
+
+        Returns:
+            - (N, `out_features`), Batch of output features.
+        """
+        return self.head(x)
+
+
 class UnimodalLogitsHead(nn.Module):
     """Layer to output (enforced) unimodal logits from an input feature vector.
 
