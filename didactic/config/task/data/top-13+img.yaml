@@ -1,0 +1,18 @@
+# @package _global_
+
+task:
+  clinical_attrs:
+    - sbp_tte
+    - pp_tte
+    - age
+    - diastolic_dysfunction_param_sum
+    - pw_d
+    - lvm_ind
+    - e_e_prime_ratio
+    - gfr
+    - lateral_e_prime
+    - septal_e_prime
+    - a_velocity
+    - ddd
+    - la_volume
+  img_attrs: ${data.process_patient_kwargs.image_attributes}

@@ -1,6 +1,7 @@
 # @package _global_
 
 defaults:
+  - /task/data: all
   - /task/img_tokenizer/model: time-series-transformer
   - /task/model/encoder: ???
   - /task/model/contrastive_head: mlp
@@ -101,8 +102,6 @@ n_img_attrs: ${op.mul:${builtin.len:${task.views}},${builtin.len:${task.img_attr
 task:
   _target_: didactic.tasks.cardiac_multimodal_representation.CardiacMultimodalRepresentationTask
   embed_dim: 8
-  clinical_attrs: ${list.remove:${data.process_patient_kwargs.clinical_attributes},${excluded_clinical_attrs}}
-  img_attrs: ${data.process_patient_kwargs.image_attributes}
   views: ${data.patients_kwargs.views}
   latent_token: True
   sequential_pooling: False
@@ -122,7 +121,7 @@ callbacks:
     _target_: pytorch_lightning.callbacks.LearningRateFinder
 
 
-experiment_dirname: img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}
+experiment_dirname: data=${hydra:runtime.choices.task/data}/contrastive=${oc.select:task.contrastive_loss_weight,0}/time_series_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}
 hydra:
   job:
     config:
@@ -146,6 +145,7 @@ hydra:
 
           - data
           - excluded_clinical_attrs
+          - task/data
           - task.clinical_attrs
           - task.img_attrs
           - task.predict_losses

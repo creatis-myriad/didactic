@@ -1,0 +1,5 @@
+# @package _global_
+
+task:
+  clinical_attrs: ${list.remove:${data.process_patient_kwargs.clinical_attributes},${excluded_clinical_attrs}}
+  img_attrs: []
