@@ -1,0 +1,2 @@
+_target_: didactic.models.layers.FTPredictionHead
+in_features: ${task.embed_dim}

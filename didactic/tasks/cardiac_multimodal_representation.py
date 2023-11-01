@@ -20,7 +20,7 @@ from vital.data.cardinal.utils.attributes import CLINICAL_CAT_ATTR_LABELS
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
-from didactic.models.layers import FTPredictionHead, PositionalEncoding, SequentialPooling, UnimodalLogitsHead
+from didactic.models.layers import PositionalEncoding, SequentialPooling
 
 CardiacAttribute = ClinicalAttribute | Tuple[ViewEnum, ImageAttribute]
 
@@ -36,7 +36,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         views: Sequence[ViewEnum] = tuple(ViewEnum),
         predict_losses: Dict[ClinicalAttribute | str, Callable[[Tensor, Tensor], Tensor]] | DictConfig = None,
         ordinal_mode: bool = True,
-        unimodal_head_kwargs: Dict[str, Any] | DictConfig = None,
         contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         contrastive_loss_weight: float = 0,
         clinical_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
@@ -57,7 +56,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             ordinal_mode: Whether to consider applicable targets as ordinal variables, which means:
                 - Applying a constraint to enforce an unimodal softmax output from the prediction heads;
                 - Predicting a new output for each ordinal target, namely the parameter of the unimodal softmax.
-            unimodal_head_kwargs: Keyword arguments to forward to the initialization of the unimodal prediction heads.
             contrastive_loss: Self-supervised criterion to use as contrastive loss between pairs of (N, E) collections
                 of feature vectors, in a contrastive learning step that follows the SCARF pretraining.
                 (see ref: https://arxiv.org/abs/2106.15147)
@@ -88,10 +86,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         # If dropout/masking are not single numbers, make sure they are tuples (and not another container type)
         if not isinstance(mtr_p, (int, float)):
             mtr_p = tuple(mtr_p)
-
-        # If kwargs are null, set them to empty dict
-        if unimodal_head_kwargs is None:
-            unimodal_head_kwargs = {}
 
         if contrastive_loss is None and predict_losses is None:
             raise ValueError(
@@ -314,12 +308,14 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                     output_size = 1
 
                 if self.hparams.ordinal_mode and target_clinical_attr in ClinicalAttribute.ordinal_attrs():
-                    # For ordinal targets, use a custom prediction head to constraint the distribution of logits
-                    prediction_heads[target_clinical_attr] = UnimodalLogitsHead(
-                        self.hparams.embed_dim, output_size, **self.hparams.unimodal_head_kwargs
+                    # For ordinal targets, use a separate prediction head config
+                    prediction_heads[target_clinical_attr] = hydra.utils.instantiate(
+                        self.hparams.model.ordinal_head, num_logits=output_size
                     )
                 else:
-                    prediction_heads[target_clinical_attr] = FTPredictionHead(self.hparams.embed_dim, output_size)
+                    prediction_heads[target_clinical_attr] = hydra.utils.instantiate(
+                        self.hparams.model.prediction_head, out_features=output_size
+                    )
 
         return encoder, contrastive_head, prediction_heads
 

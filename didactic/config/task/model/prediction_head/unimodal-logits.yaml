@@ -1,0 +1,5 @@
+_target_: didactic.models.layers.UnimodalLogitsHead
+in_features: ${task.embed_dim}
+distribution: binomial
+tau: 1
+tau_mode: learn_fn

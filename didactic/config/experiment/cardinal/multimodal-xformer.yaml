@@ -4,6 +4,8 @@ defaults:
   - /task/img_tokenizer/model: time-series-transformer
   - /task/model/encoder: ???
   - /task/model/contrastive_head: mlp
+  - /task/model/prediction_head: ft-prediction
+  - /task/model/prediction_head@task.model.ordinal_head: unimodal-logits
   - override /task/model: null  # Set this to null because we specify multiple submodels instead of a singleton model
   - override /task/optim: adamw
   - override /data: cardinal
