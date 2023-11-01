@@ -17,7 +17,6 @@ from vital.data.cardinal.config import CardinalTag, ClinicalAttribute, ImageAttr
 from vital.data.cardinal.config import View as ViewEnum
 from vital.data.cardinal.datapipes import MISSING_CAT_ATTR, PatientData, filter_image_attributes
 from vital.data.cardinal.utils.attributes import CLINICAL_CAT_ATTR_LABELS
-from vital.models.classification.mlp import MLP
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
@@ -293,13 +292,10 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         # Build the transformer encoder
         encoder = hydra.utils.instantiate(self.hparams.model.encoder)
 
-        # Build the projection head as an MLP with a single hidden layer and constant width, as proposed in
-        # https://arxiv.org/abs/2106.15147
+        # Build the projection head for contrastive learning, if contrastive learning is enabled
         contrastive_head = None
         if self.contrastive_loss:
-            contrastive_head = MLP(
-                (self.hparams.embed_dim,), (self.hparams.embed_dim,), hidden=(self.hparams.embed_dim,), dropout=0
-            )
+            contrastive_head = hydra.utils.instantiate(self.hparams.model.contrastive_head)
 
         # Build the prediction heads (one by clinical attribute to predict) following the architecture proposed in
         # https://arxiv.org/pdf/2106.11959

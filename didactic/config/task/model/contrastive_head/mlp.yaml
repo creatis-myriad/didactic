@@ -1,0 +1,7 @@
+# Build the projection head as an MLP with a single hidden layer and constant width, as proposed in
+# https://arxiv.org/abs/2106.15147
+_target_: vital.models.classification.mlp.MLP
+input_shape: [ "${task.embed_dim}" ]
+output_shape: [ "${task.embed_dim}" ]
+hidden: [ "${task.embed_dim}" ]
+dropout: 0

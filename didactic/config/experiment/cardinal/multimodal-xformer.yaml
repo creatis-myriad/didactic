@@ -3,6 +3,7 @@
 defaults:
   - /task/img_tokenizer/model: time-series-transformer
   - /task/model/encoder: ???
+  - /task/model/contrastive_head: mlp
   - override /task/model: null  # Set this to null because we specify multiple submodels instead of a singleton model
   - override /task/optim: adamw
   - override /data: cardinal
