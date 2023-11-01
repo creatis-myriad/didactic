@@ -148,10 +148,6 @@ hydra:
           - task.predict_losses
           - task.contrastive_loss._target_
           - task.contrastive_loss_weight
-          - task.mask_loss._target_
-          - task.mask_loss_weight
-          - task/constraint
-          - task.constraint.clustering_model
           - task.mtr_p
           - task.mt_by_attr
 
