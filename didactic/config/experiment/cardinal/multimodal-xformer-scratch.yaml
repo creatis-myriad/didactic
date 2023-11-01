@@ -10,6 +10,7 @@ excluded_clinical_attrs: ${oc.dict.keys:task.predict_losses}
 
 task:
   predict_losses: ???
+  ordinal_mode: True
   contrastive_loss:
     _target_: vital.metrics.train.metric.NTXent
   contrastive_loss_weight: 0
@@ -17,7 +18,7 @@ task:
 
 hydra:
   run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/scratch/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/${hydra.job.override_dirname}
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/scratch/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}
   sweep:
     dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/scratch
-    subdir: ${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/${hydra.job.override_dirname}
+    subdir: ${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}

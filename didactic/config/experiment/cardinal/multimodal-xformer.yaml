@@ -122,7 +122,7 @@ callbacks:
     _target_: pytorch_lightning.callbacks.LearningRateFinder
 
 
-experiment_dirname: encoder=${hydra:runtime.choices.task/model/encoder}/img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.num_layers},nhead=${task.model.encoder.encoder_layer.nhead},dropout=${task.model.encoder.encoder_layer.dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr}
+experiment_dirname: img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}
 hydra:
   job:
     config:
@@ -162,3 +162,7 @@ hydra:
           - task.model.encoder.encoder_layer.nhead
           - task.model.encoder.encoder_layer.dim_feedforward
           - task.model.encoder.encoder_layer.dropout
+
+          - task.ordinal_mode
+          - task.model.ordinal_head.backbone_distribution
+          - task.model.ordinal_head.tau_mode

@@ -11,6 +11,7 @@ excluded_clinical_attrs: ${oc.dict.keys:task.predict_losses}
 
 task:
   predict_losses: ???
+  ordinal_mode: True
   contrastive_loss:
     _target_: vital.metrics.train.metric.NTXent
   contrastive_loss_weight: 0
@@ -34,10 +35,9 @@ ckpt: ??? # Make it mandatory to provide a checkpoint
 weights_only: True  # Only load the weights and ignore the hyperparameters
 strict: False # Only load weights where they match the defined network, to only some changes (e.g. heads, etc.)
 
-experiment_dirname: encoder=${hydra:runtime.choices.task/model/encoder}/img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.n_blocks},nhead=${task.model.encoder.attention_n_heads},dropout=${task.model.encoder.attention_dropout},${task.model.encoder.ffn_dropout},${task.model.encoder.residual_dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr}
 hydra:
   run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/${hydra.job.override_dirname}
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}
   sweep:
     dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune
-    subdir: ${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/${hydra.job.override_dirname}
+    subdir: ${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}
