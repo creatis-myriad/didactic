@@ -217,8 +217,17 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
             predictions: Sequences of encoder output features and predicted clinical attribute for each patient. There
                 is one sublist for each prediction dataloader provided.
         """
+        prediction_example = predictions[0][0]  # 1st: subset, 2nd: batch
+        # Pre-compute the list of attributes for which we have a unimodal parameter, since this output might be None
+        # and we don't want to access it in that case
+        ordinal_attrs = list(prediction_example[2]) if prediction_example[2] else []
         features = {
-            (subset, patient.id, *[patient.attrs.get(attr) for attr in self._hue_attrs]): patient_prediction[0]
+            (
+                subset,
+                patient.id,
+                *[patient.attrs.get(attr) for attr in self._hue_attrs],
+                *[patient_prediction[output_idx][attr].item() for attr in ordinal_attrs for output_idx in (2, 3)],
+            ): patient_prediction[0]
             .flatten()
             .cpu()
             .numpy()
@@ -233,7 +242,12 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
             features.values(),
             index=pd.MultiIndex.from_tuples(
                 features.keys(),
-                names=["subset", "patient", *self._hue_attrs],
+                names=[
+                    "subset",
+                    "patient",
+                    *self._hue_attrs,
+                    *[f"{attr}_unimodal_{pred_desc}" for attr in ordinal_attrs for pred_desc in ("param", "tau")],
+                ],
             ),
         )
 
@@ -283,15 +297,14 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
 
             # Compute the loss on the predictions for all the patients of the subset
             subset_categorical_data, subset_numerical_data = [], []
-            for (patient_id, patient), (_, patient_predictions) in zip(subset_patients.items(), subset_predictions):
+            for (patient_id, patient), patient_predictions in zip(subset_patients.items(), subset_predictions):
+                attr_predictions = patient_predictions[1]
                 if target_categorical_attrs:
                     patient_categorical_data = {"patient": patient_id}
                     for attr in target_categorical_attrs:
                         patient_categorical_data.update(
                             {
-                                f"{attr}_prediction": CLINICAL_CAT_ATTR_LABELS[attr][
-                                    patient_predictions[attr].argmax()
-                                ],
+                                f"{attr}_prediction": CLINICAL_CAT_ATTR_LABELS[attr][attr_predictions[attr].argmax()],
                                 f"{attr}_target": patient.attrs.get(attr, np.nan),
                             }
                         )
@@ -302,7 +315,7 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
                     for attr in target_numerical_attrs:
                         patient_numerical_data.update(
                             {
-                                f"{attr}_prediction": patient_predictions[attr].item(),
+                                f"{attr}_prediction": attr_predictions[attr].item(),
                                 f"{attr}_target": patient.attrs.get(attr, np.nan),
                             }
                         )
