@@ -1,0 +1,16 @@
+_target_: torch.nn.TransformerEncoder
+num_layers: 1
+
+norm:
+  _target_: torch.nn.LayerNorm
+  normalized_shape: ${task.model.encoder.encoder_layer.d_model}
+
+encoder_layer:
+  _target_: torch.nn.TransformerEncoderLayer
+  d_model: ???
+  nhead: 1
+  dim_feedforward: 2048
+  dropout: 0.1
+  activation: relu
+  batch_first: True
+  norm_first: True

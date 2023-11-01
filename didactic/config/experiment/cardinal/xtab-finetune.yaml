@@ -2,7 +2,7 @@
 
 defaults:
   - cardinal/multimodal-xformer
-  - override /task/model: xtab-ft-transformer
+  - override /task/model/encoder: xtab-ft-transformer
 
 trainer:
   max_steps: 2000
@@ -34,7 +34,7 @@ ckpt: ??? # Make it mandatory to provide a checkpoint
 weights_only: True  # Only load the weights and ignore the hyperparameters
 strict: False # Only load weights where they match the defined network, to only some changes (e.g. heads, etc.)
 
-experiment_dirname: encoder=${hydra:runtime.choices.task/model}/img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.n_blocks},nhead=${task.model.encoder.attention_n_heads},dropout=${task.model.encoder.attention_dropout},${task.model.encoder.ffn_dropout},${task.model.encoder.residual_dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr}
+experiment_dirname: encoder=${hydra:runtime.choices.task/model/encoder}/img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.n_blocks},nhead=${task.model.encoder.attention_n_heads},dropout=${task.model.encoder.attention_dropout},${task.model.encoder.ffn_dropout},${task.model.encoder.residual_dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr}
 hydra:
   run:
     dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/${hydra.job.override_dirname}

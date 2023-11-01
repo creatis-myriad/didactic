@@ -2,7 +2,8 @@
 
 defaults:
   - /task/img_tokenizer/model: linear-embedding
-  - override /task/model: cardinal-ft-transformer
+  - /task/model/encoder: ???
+  - override /task/model: null  # Set this to null because we specify multiple submodels instead of a singleton model
   - override /task/optim: adamw
   - override /data: cardinal
 
@@ -118,7 +119,7 @@ callbacks:
     _target_: pytorch_lightning.callbacks.LearningRateFinder
 
 
-experiment_dirname: encoder=${hydra:runtime.choices.task/model}/img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.num_layers},nhead=${task.model.encoder.encoder_layer.nhead},dropout=${task.model.encoder.encoder_layer.dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr}
+experiment_dirname: encoder=${hydra:runtime.choices.task/model/encoder}/img_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}/n_clinical_attrs=${n_clinical_attrs},n_img_attrs=${n_img_attrs}/contrastive=${oc.select:task.contrastive_loss_weight,0}/embed_dim=${task.embed_dim},depth=${task.model.encoder.num_layers},nhead=${task.model.encoder.encoder_layer.nhead},dropout=${task.model.encoder.encoder_layer.dropout}/mtr_p=${task.mtr_p},mt_by_attr=${task.mt_by_attr}
 hydra:
   job:
     config:
@@ -157,7 +158,7 @@ hydra:
           - task.embed_dim
           - task/img_tokenizer/model
 
-          - task/model
+          - task/model/encoder
           - task.model.encoder.num_layers
           - task.model.encoder.encoder_layer.nhead
           - task.model.encoder.encoder_layer.dim_feedforward
