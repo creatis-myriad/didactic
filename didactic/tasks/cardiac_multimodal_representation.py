@@ -102,9 +102,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 "model in fully-supervised mode, with the self-supervised loss as an auxiliary term."
             )
 
-        if latent_token and sequential_pooling:
+        if latent_token == sequential_pooling:
             raise ValueError(
-                "`latent_token` and `sequential_pooling` are mutually exclusive options, meant to reduce the "
+                "You should specify either `latent_token` or `sequential_pooling` as the method to reduce the "
                 "dimensionality of the encoder's output from a sequence of tokens to only one token."
             )
 
@@ -239,12 +239,15 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self.img_tokenizer = img_tokenizer
 
         # Initialize modules/parameters dependent on the encoder's configuration
+
         # Initialize learnable positional embedding parameters
         self.positional_encoding = PositionalEncoding(self.sequence_length, self.hparams.embed_dim)
 
+        # Initialize parameters of method for reducing the dimensionality of the encoder's output to only one token
         if self.hparams.latent_token:
-            # Initialize parameters of the latent token
             self.latent_token = rtdl.CLSToken(self.hparams.embed_dim, "uniform")
+        if self.hparams.sequential_pooling:
+            self.sequential_pooling = SequentialPooling(self.hparams.embed_dim)
 
         if self.hparams.mtr_p:
 
@@ -267,9 +270,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 # Init a single universal MASK token
                 self.mask_token = _init_mask_token()
 
-        if self.hparams.sequential_pooling:
-            self.sequential_pooling = SequentialPooling(self.hparams.embed_dim)
-
     @property
     def example_input_array(
         self,
@@ -291,19 +291,15 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
     ) -> Tuple[nn.Module, Optional[nn.Module], Optional[nn.ModuleDict]]:
         """Build the model, which must return a transformer encoder, and self-supervised or prediction heads."""
         # Build the transformer encoder
-        encoder = hydra.utils.instantiate(self.hparams.model.get("encoder"))
-
-        # Determine the number of features at the output of the encoder
-        if self.hparams.latent_token or self.hparams.sequential_pooling:
-            num_features = self.hparams.embed_dim
-        else:
-            num_features = self.sequence_length * self.hparams.embed_dim
+        encoder = hydra.utils.instantiate(self.hparams.model.encoder)
 
         # Build the projection head as an MLP with a single hidden layer and constant width, as proposed in
         # https://arxiv.org/abs/2106.15147
         contrastive_head = None
         if self.contrastive_loss:
-            contrastive_head = MLP((num_features,), (num_features,), hidden=(num_features,), dropout=0)
+            contrastive_head = MLP(
+                (self.hparams.embed_dim,), (self.hparams.embed_dim,), hidden=(self.hparams.embed_dim,), dropout=0
+            )
 
         # Build the prediction heads (one by clinical attribute to predict) following the architecture proposed in
         # https://arxiv.org/pdf/2106.11959
@@ -324,11 +320,11 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 if self.hparams.ordinal_mode and target_clinical_attr in ClinicalAttribute.ordinal_attrs():
                     # For ordinal targets, use a custom prediction head to constraint the distribution of logits
                     prediction_heads[target_clinical_attr] = UnimodalLogitsHead(
-                        num_features, output_size, **self.hparams.unimodal_head_kwargs
+                        self.hparams.embed_dim, output_size, **self.hparams.unimodal_head_kwargs
                     )
                 else:
                     prediction_heads[target_clinical_attr] = nn.Sequential(
-                        nn.LayerNorm(num_features), nn.ReLU(), nn.Linear(num_features, output_size)
+                        nn.LayerNorm(self.hparams.embed_dim), nn.ReLU(), nn.Linear(self.hparams.embed_dim, output_size)
                     )
 
         return encoder, contrastive_head, prediction_heads
@@ -416,8 +412,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 disable them even during training. This is useful to compute "uncorrupted" views of the data for
                 contrastive learning.
 
-        Returns: (N, E) or (N, S * E), Embeddings of the input sequences. The shape of the embeddings depends on the
-            selection/pooling applied on the output tokens.
+        Returns: (N, E), Embeddings of the input sequences.
         """
         mask_token = self.mask_token
         if isinstance(mask_token, ParameterDict):
@@ -448,7 +443,10 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             # Only keep the latent token (i.e. the last token) from the tokens outputted by the encoder
             out_features = out_tokens[:, -1, :]  # (N, S, E) -> (N, E)
         else:
-            out_features = out_tokens.flatten(start_dim=1)  # (N, S, E) -> (N, S * E)
+            raise AssertionError(
+                "Either `latent_token` or `sequential_pooling` should have been enabled as the method to reduce the "
+                "dimensionality of the encoder's output from a sequence of tokens to only one token."
+            )
 
         return out_features
 
@@ -471,7 +469,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         Returns:
             if `task` == 'encode':
-                (N, E) | (N, S * E), Batch of features extracted by the encoder.
+                (N, E), Batch of features extracted by the encoder.
             if `task` == 'unimodal_param`:
                 ? * (M), Parameter of the unimodal logits distribution for ordinal targets.
             if `task` == 'unimodal_tau`:
@@ -492,7 +490,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             )
 
         in_tokens, avail_mask = self.tokenize(clinical_attrs, img_attrs)  # (N, S, E), (N, S)
-        out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E) | (N, S * E)
+        out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E)
 
         # Early return if requested task requires no prediction heads
         if task == "encode":
@@ -526,7 +524,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         img_attrs = filter_image_attributes(batch, views=self.hparams.views, attributes=self.hparams.img_attrs)
 
         in_tokens, avail_mask = self.tokenize(clinical_attrs, img_attrs)  # (N, S, E), (N, S)
-        out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E) / (N, S * E)
+        out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E)
 
         metrics = {}
         losses = []
