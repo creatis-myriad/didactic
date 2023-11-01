@@ -3,7 +3,7 @@
 defaults:
   - /task/img_tokenizer/model: linear-embedding
   - override /task/model: cardinal-ft-transformer
-  - override /task/optim: null
+  - override /task/optim: adamw
   - override /data: cardinal
 
 test: True
@@ -112,10 +112,6 @@ task:
   img_tokenizer:
     _target_: didactic.models.time_series.TimeSeriesEmbedding
     resample_dim: 64
-
-  optim:
-    optimizer:
-      _target_: torch.optim.AdamW
 
 callbacks:
   learning_rate_finder:
