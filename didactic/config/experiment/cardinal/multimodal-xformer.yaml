@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - /task/img_tokenizer/model: linear-embedding
+  - /task/img_tokenizer/model: time-series-transformer
   - /task/model/encoder: ???
   - override /task/model: null  # Set this to null because we specify multiple submodels instead of a singleton model
   - override /task/optim: adamw
