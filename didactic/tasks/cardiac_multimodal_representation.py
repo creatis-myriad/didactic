@@ -190,7 +190,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         )  # Hyperparameter to easily access target attributes
         for attr in self.predict_losses:
             if attr in ClinicalAttribute.numerical_attrs():
-                self.metrics[attr] = {"mae": functools.partial(mean_absolute_error)}
+                self.metrics[attr] = {"mae": mean_absolute_error}
             elif attr in ClinicalAttribute.binary_attrs():
                 self.metrics[attr] = {"acc": functools.partial(accuracy, task="binary")}
             else:  # attr in ClinicalAttribute.categorical_attrs()
