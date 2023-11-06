@@ -1,5 +1,6 @@
 import functools
 import itertools
+import logging
 import math
 from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
 
@@ -21,7 +22,9 @@ from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
 from didactic.models.layers import PositionalEncoding, SequentialPooling
+from didactic.models.time_series import TimeSeriesEmbedding
 
+logger = logging.getLogger(__name__)
 CardiacAttribute = ClinicalAttribute | Tuple[ViewEnum, ImageAttribute]
 
 
@@ -39,7 +42,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         contrastive_loss_weight: float = 0,
         clinical_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
-        img_tokenizer: Optional[nn.Module | DictConfig] = None,
+        img_tokenizer: Optional[TimeSeriesEmbedding | DictConfig] = None,
         latent_token: bool = True,
         sequential_pooling: bool = False,
         mtr_p: float | Tuple[float, float] = 0,
@@ -108,13 +111,23 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 f"attributes. Either provide this tokenizer (through the `clinical_tokenizer` parameter) or remove any "
                 f"clinical-based attributes (by setting the `clinical_attrs` to be an empty list)."
             )
-        if not img_tokenizer and img_attrs:
-            raise ValueError(
-                f"You have requested the following attributes derived from imaging data: "
-                f"{[str(attr) for attr in img_attrs]}, but have not configured a tokenizer for image-based "
-                f"attributes. Either provide this tokenizer (through the `img_tokenizer` parameter) or remove any "
-                f"image-based attributes (by setting the `img_attrs` to be an empty list)."
-            )
+        if img_attrs:
+            if not img_tokenizer:
+                raise ValueError(
+                    f"You have requested the following attributes derived from imaging data: "
+                    f"{[str(attr) for attr in img_attrs]}, but have not configured a tokenizer for image-based "
+                    f"attributes. Either provide this tokenizer (through the `img_tokenizer` parameter) or remove any "
+                    f"image-based attributes (by setting the `img_attrs` to be an empty list)."
+                )
+            if (
+                img_tokenizer.model if isinstance(img_tokenizer, TimeSeriesEmbedding) else img_tokenizer.get("model")
+            ) is None:
+                logger.warning(
+                    f"You have requested the following attributes derived from imaging data: "
+                    f"{[str(attr) for attr in img_attrs]}, but have not configured a model for the tokenizer for "
+                    f"image-based attributes. The tokenizer's model is optional, but highly recommended, so this is "
+                    f"likely an oversight. You can provide this model through the `img_tokenizer.model` parameter."
+                )
         if not (clinical_attrs or img_attrs):
             raise ValueError(
                 "You configured neither clinical attributes nor image attributes as input variables to the model, but "
