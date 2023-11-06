@@ -137,6 +137,14 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         super().__init__(*args, **kwargs)
 
+        # TOFIX: Hack to log image tokenizer model's hparams when it's a config for a `torch.nn.Sequential` object
+        # In that case, we have to use a `ListConfig` for the reserved `_args_` key. However, the automatic
+        # serialization of `_args_` fails (w/ a '`DictConfig' not JSON serializable' error). Therefore, we fix it by
+        # manually unpacking and logging the first and only element in the `_args_` `ListConfig`
+        if isinstance(img_tokenizer, DictConfig):
+            if img_tokenizer.get("model", {}).get("_target_") == "torch.nn.Sequential":
+                self.save_hyperparameters({"img_tokenizer/model/_args_/0": img_tokenizer.model._args_[0]})
+
         # Add shortcut to lr to work with Lightning's learning rate finder
         self.hparams.lr = None
 
