@@ -138,8 +138,6 @@ hydra:
           - trainer.max_epochs
 
           - callbacks.learning_rate_finder
-          - callbacks.log_encoder_hist
-          - callbacks.log_encoder_attn_weights
 
           - ckpt
 
@@ -158,10 +156,6 @@ hydra:
           - task/img_tokenizer/model
 
           - task/model/encoder
-          - task.model.encoder.num_layers
-          - task.model.encoder.encoder_layer.nhead
-          - task.model.encoder.encoder_layer.dim_feedforward
-          - task.model.encoder.encoder_layer.dropout
 
           - task.ordinal_mode
           - task.model.ordinal_head.backbone_distribution
