@@ -21,7 +21,7 @@ _args_:
 
     transformer_encoder:
       _target_: torch.nn.TransformerEncoder
-      num_layers: 2
+      num_layers: 1
 
       norm:
         _target_: torch.nn.LayerNorm
@@ -30,9 +30,9 @@ _args_:
       encoder_layer:
         _target_: torch.nn.TransformerEncoderLayer
         d_model: ${task.embed_dim}
-        nhead: ${oc.select:task.model.encoder.attention_n_heads,${oc.select:task.model.encoder.encoder_layer.nhead,???}}
-        dim_feedforward: ${op.mul:1.5,${task.embed_dim},int}
-        dropout: 0.1
+        nhead: 4
+        dim_feedforward: ${task.embed_dim}
+        dropout: 0.3
         activation: relu
         batch_first: True
         norm_first: True
