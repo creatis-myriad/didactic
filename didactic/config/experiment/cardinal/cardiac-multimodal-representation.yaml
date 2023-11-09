@@ -26,6 +26,10 @@ data:
       - ef
       - edv
       - esv
+      - a4c_ed_sc_diff
+      - a4c_ed_lc_diff
+      - a2c_ed_ic_diff
+      - a2c_ed_ac_diff
       - age
       - sex
       - bmi
@@ -81,13 +85,12 @@ data:
       - ht_cm
     image_attributes:
       - gls
-      - gls_left
-      - gls_right
+      - ls_left
+      - ls_right
       - lv_area
       - lv_length
-      - myo_area
-      - myo_area_left
-      - myo_area_right
+      - myo_thickness_left
+      - myo_thickness_right
 
   predict:
     _target_: didactic.data.cardinal.predict.CardiacRepresentationPredictionWriter
