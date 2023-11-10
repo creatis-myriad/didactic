@@ -68,9 +68,6 @@ flake8-docstrings = "==1.7.0"
 
 [tool.poetry.scripts]
 didactic-runner = "didactic.runner:main"
-didactic-image-attributes-plots = "didactic.results.cardinal.image_attributes_plots:main"
-didactic-image-temporal-metrics = "didactic.results.cardinal.image_temporal_metrics:main"
-didactic-image-attributes-metrics = "didactic.results.cardinal.image_attributes_metrics:main"
 
 [[tool.poetry.source]]
 name = "pytorch-cu118"
