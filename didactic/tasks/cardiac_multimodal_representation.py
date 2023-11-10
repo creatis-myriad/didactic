@@ -43,7 +43,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         contrastive_loss_weight: float = 0,
         clinical_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
         img_tokenizer: Optional[TimeSeriesEmbedding | DictConfig] = None,
-        latent_token: bool = True,
+        cls_token: bool = True,
         sequential_pooling: bool = False,
         mtr_p: float | Tuple[float, float] = 0,
         mt_by_attr: bool = False,
@@ -68,7 +68,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             views: Views from which to include image attributes.
             clinical_tokenizer: Tokenizer that can process clinical, i.e. patient records, data.
             img_tokenizer: Tokenizer that can process imaging data.
-            latent_token: Whether to add a latent token (i.e. CLASS token) to use as the encoder's output token.
+            cls_token: Whether to add a CLS token to use as the encoder's output token.
             sequential_pooling: Whether to perform sequential pooling on the encoder's output tokens. Otherwise, the
                 full sequence of tokens is concatenated before being fed to the prediction head.
             mtr_p: Probability to replace tokens by the learned MASK token, following the Mask Token Replacement (MTR)
@@ -98,9 +98,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 "model in fully-supervised mode, with the self-supervised loss as an auxiliary term."
             )
 
-        if latent_token == sequential_pooling:
+        if cls_token == sequential_pooling:
             raise ValueError(
-                "You should specify either `latent_token` or `sequential_pooling` as the method to reduce the "
+                "You should specify either `cls_token` or `sequential_pooling` as the method to reduce the "
                 "dimensionality of the encoder's output from a sequence of tokens to only one token."
             )
 
@@ -152,7 +152,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self.token_tags = clinical_attrs + tuple(
             "/".join([view, attr]) for view, attr in itertools.product(views, img_attrs)
         )
-        if latent_token:
+        if cls_token:
             self.token_tags = self.token_tags + ("LAT",)
 
         # Categorise the clinical attributes (tabular data) in terms of their type (numerical vs categorical)
@@ -213,7 +213,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self.sequence_length = (
             len(self.hparams.clinical_attrs)
             + (len(self.hparams.img_attrs) * len(self.hparams.views))
-            + self.hparams.latent_token
+            + self.hparams.cls_token
         )
 
         # Initialize transformer encoder and self-supervised + prediction heads
@@ -258,8 +258,8 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self.positional_encoding = PositionalEncoding(self.sequence_length, self.hparams.embed_dim)
 
         # Initialize parameters of method for reducing the dimensionality of the encoder's output to only one token
-        if self.hparams.latent_token:
-            self.latent_token = rtdl.CLSToken(self.hparams.embed_dim, "uniform")
+        if self.hparams.cls_token:
+            self.cls_token = rtdl.CLSToken(self.hparams.embed_dim, "uniform")
         if self.hparams.sequential_pooling:
             self.sequential_pooling = SequentialPooling(self.hparams.embed_dim)
 
@@ -277,7 +277,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             if self.hparams.mt_by_attr:
                 # Init one MASK token for each attribute
                 attr_tags = self.token_tags
-                if self.hparams.latent_token:
+                if self.hparams.cls_token:
                     attr_tags = attr_tags[:-1]
                 self.mask_token = nn.ParameterDict({attr: _init_mask_token() for attr in attr_tags})
             else:
@@ -440,9 +440,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             # Replace random non-missing tokens with the mask token to perturb the input
             tokens, _ = random_masking(tokens, mask_token, mtr_p)
 
-        if self.hparams.latent_token:
-            # Add the latent token to the end of each item in the batch
-            tokens = self.latent_token(tokens)
+        if self.hparams.cls_token:
+            # Add the CLS token to the end of each item in the batch
+            tokens = self.cls_token(tokens)
 
         # Forward pass through the transformer encoder
         out_tokens = self.encoder(self.positional_encoding(tokens))
@@ -450,12 +450,12 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if self.hparams.sequential_pooling:
             # Perform sequential pooling of the transformers' output tokens
             out_features = self.sequential_pooling(out_tokens)  # (N, S, E) -> (N, E)
-        elif self.hparams.latent_token:
-            # Only keep the latent token (i.e. the last token) from the tokens outputted by the encoder
+        elif self.hparams.cls_token:
+            # Only keep the CLS token (i.e. the last token) from the tokens outputted by the encoder
             out_features = out_tokens[:, -1, :]  # (N, S, E) -> (N, E)
         else:
             raise AssertionError(
-                "Either `latent_token` or `sequential_pooling` should have been enabled as the method to reduce the "
+                "Either `cls_token` or `sequential_pooling` should have been enabled as the method to reduce the "
                 "dimensionality of the encoder's output from a sequence of tokens to only one token."
             )
 

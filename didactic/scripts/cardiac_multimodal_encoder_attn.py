@@ -90,7 +90,7 @@ def main():
     }
 
     encoder = load_from_checkpoint(encoder_ckpt, expected_checkpoint_type=CardiacMultimodalRepresentationTask)
-    if encoder.hparams.latent_token:
+    if encoder.hparams.cls_token:
         summarize_patient_attn_kwargs["attention_rollout_kwargs"] = {"includes_cls_token": True}
 
     # Read the lists of patients in each subset from their respective files
@@ -107,8 +107,8 @@ def main():
     plt.switch_backend("agg")
 
     def _log_attn_summary(attn_summary: np.ndarray, name: str) -> None:
-        if encoder.hparams.latent_token:
-            # If we have the attention vector of the latent token w.r.t. other tokens,
+        if encoder.hparams.cls_token:
+            # If we have the attention vector of the CLS token w.r.t. other tokens,
             # reshape it into a matrix to be able to display it as a 2D heatmap
             attn_summary_df = pd.DataFrame(
                 attn_summary.reshape((1, -1)), index=encoder.token_tags[-1:], columns=encoder.token_tags[:-1]

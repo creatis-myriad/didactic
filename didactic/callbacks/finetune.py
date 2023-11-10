@@ -81,8 +81,8 @@ class TransformerEncoderFreeze(Callback):
                 modules_to_freeze.append(pl_module.img_tokenizer)
 
             # Add optional models/parameters if they're used in the model
-            if pl_module.hparams.latent_token:
-                modules_to_freeze.append(pl_module.latent_token)
+            if pl_module.hparams.cls_token:
+                modules_to_freeze.append(pl_module.cls_token)
             if pl_module.hparams.sequential_pooling:
                 modules_to_freeze.append(pl_module.sequential_pooling)
 

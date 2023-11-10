@@ -103,8 +103,8 @@ class AttentionWeightsLogger(Callback):
                     attention_rollout(list(self._attn_weights.values()), **self._attention_rollout_kwargs).cpu().numpy()
                 )
 
-                if pl_module.hparams.latent_token:
-                    # If we have the attention vector of the latent token w.r.t. other tokens,
+                if pl_module.hparams.cls_token:
+                    # If we have the attention vector of the CLS token w.r.t. other tokens,
                     # reshape it into a matrix to be able to display it as a 2D heatmap
                     attn_rollout_df = pd.DataFrame(
                         attn_rollout_mask.reshape((1, -1)),

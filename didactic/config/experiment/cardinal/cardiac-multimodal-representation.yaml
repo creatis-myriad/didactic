@@ -106,7 +106,7 @@ task:
   _target_: didactic.tasks.cardiac_multimodal_representation.CardiacMultimodalRepresentationTask
   embed_dim: 8
   views: ${data.patients_kwargs.views}
-  latent_token: True
+  cls_token: True
   sequential_pooling: False
   mtr_p: 0
   mt_by_attr: False

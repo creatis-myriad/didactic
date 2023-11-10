@@ -58,8 +58,8 @@ def interactive_cardiac_multimodal_representation(
 
     # Make all the attributes in the dataset available for labelling the data
     token_tags = list(model.token_tags)
-    if model.latent_token:
-        token_tags = token_tags[:-1]  # Discard latent token from token tags if it is there
+    if model.cls_token:
+        token_tags = token_tags[:-1]  # Discard CLS token from token tags if it is there
     label_attrs = list(ClinicalAttribute)
     label_attrs_by_group = {
         group: [attr for attr in group_attrs if attr in label_attrs]
@@ -332,7 +332,7 @@ def main():
             summarize_patient_attn,
             mask_tag=mask_tag,
             use_attention_rollout=True,
-            attention_rollout_kwargs={"includes_cls_token": encoder.hparams.latent_token},
+            attention_rollout_kwargs={"includes_cls_token": encoder.hparams.cls_token},
         )
 
     # Organize layout
