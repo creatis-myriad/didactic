@@ -3,61 +3,61 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
-from vital.data.cardinal.config import ClinicalAttribute
-from vital.data.cardinal.utils.attributes import CLINICAL_CAT_ATTR_LABELS
+from vital.data.cardinal.config import TabularAttribute
+from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
 from vital.data.cardinal.utils.itertools import Patients
 
-NUM_CLINICAL_ATTR_STATS = defaultdict(lambda: "mean")
-NUM_CLINICAL_ATTR_STATS.update(
+_NUM_ATTR_STATS = defaultdict(lambda: "mean")
+_NUM_ATTR_STATS.update(
     {
-        ClinicalAttribute.ddd: "quartile",
-        ClinicalAttribute.creat: "quartile",
-        ClinicalAttribute.gfr: "quartile",
-        ClinicalAttribute.nt_probnp: "quartile",
-        ClinicalAttribute.mv_dt: "quartile",
+        TabularAttribute.ddd: "quartile",
+        TabularAttribute.creat: "quartile",
+        TabularAttribute.gfr: "quartile",
+        TabularAttribute.nt_probnp: "quartile",
+        TabularAttribute.mv_dt: "quartile",
     }
 )
 "Numerical attributes' statistics are summarized using `mean ± std, unless other specified here."
 
-NUM_CLINICAL_ATTR_DECIMALS = defaultdict(int)
-NUM_CLINICAL_ATTR_DECIMALS.update(
+_NUM_ATTR_DECIMALS = defaultdict(int)
+_NUM_ATTR_DECIMALS.update(
     {
-        ClinicalAttribute.bmi: 1,
-        ClinicalAttribute.ddd: 1,
-        ClinicalAttribute.gfr: 1,
-        ClinicalAttribute.e_velocity: 1,
-        ClinicalAttribute.a_velocity: 1,
-        ClinicalAttribute.e_e_prime_ratio: 1,
-        ClinicalAttribute.la_volume: 1,
-        ClinicalAttribute.la_area: 1,
-        ClinicalAttribute.vmax_tr: 1,
-        ClinicalAttribute.ivs_d: 1,
-        ClinicalAttribute.lvid_d: 1,
-        ClinicalAttribute.pw_d: 1,
-        ClinicalAttribute.tapse: 1,
-        ClinicalAttribute.s_prime: 1,
+        TabularAttribute.bmi: 1,
+        TabularAttribute.ddd: 1,
+        TabularAttribute.gfr: 1,
+        TabularAttribute.e_velocity: 1,
+        TabularAttribute.a_velocity: 1,
+        TabularAttribute.e_e_prime_ratio: 1,
+        TabularAttribute.la_volume: 1,
+        TabularAttribute.la_area: 1,
+        TabularAttribute.vmax_tr: 1,
+        TabularAttribute.ivs_d: 1,
+        TabularAttribute.lvid_d: 1,
+        TabularAttribute.pw_d: 1,
+        TabularAttribute.tapse: 1,
+        TabularAttribute.s_prime: 1,
     }
 )
 """Attributes' statistics are rounded to the nearest integer, unless specified otherwise here."""
 
 
 def describe_patients(
-    patients: Patients, clinical_attrs: Sequence[ClinicalAttribute] = None, format_summary: bool = False
+    patients: Patients, tabular_attrs: Sequence[TabularAttribute] = None, format_summary: bool = False
 ) -> pd.DataFrame:
-    """Computes statistics over patients' clinical attributes, adapting statistics to numerical/categorical attributes.
+    """Computes statistics over patients' tabular attributes, adapting statistics to numerical/categorical attributes.
 
     Args:
         patients: Patients over which to compute the statistics.
-        clinical_attrs: Subset of clinical attributes over which to compute the statistics.
+        tabular_attrs: Subset of tabular attributes over which to compute the statistics.
         format_summary: Whether to add a column where a subset of the stats (depending on the attribute) are selected
             and formatted, as a summary of that attribute's statistics.
 
     Returns:
-        Statistics describing patients' clinical attributes.
+        Statistics describing patients' tabular attributes.
     """
-    patients_attrs = patients.to_dataframe(clinical_attrs=clinical_attrs)
-    if clinical_attrs is None:
-        clinical_attrs = patients_attrs.columns.tolist()
+    patients_attrs = patients.to_dataframe(tabular_attrs=tabular_attrs)
+    if tabular_attrs is None:
+        tabular_attrs = patients_attrs.columns.tolist()
 
     # Get the descriptions for the numerical attributes, with attributes as rows and descriptions as columns
     num_stats = ["mean", "std", "50%", "25%", "75%"]
@@ -65,13 +65,13 @@ def describe_patients(
 
     # Manually compute the occurrences of label for boolean/categorical attributes
     cat_stats = ["count", "%"]
-    cat_attrs = [attr for attr in ClinicalAttribute.categorical_attrs() if attr in patients_attrs.columns]
+    cat_attrs = [attr for attr in TabularAttribute.categorical_attrs() if attr in patients_attrs.columns]
     cat_attrs_desc = {}
     for attr in cat_attrs:
         attr_data = patients_attrs[attr]
         attr_data = attr_data[attr_data.notna()]  # Discard missing data
 
-        label_counts = {label: (attr_data == label).sum() for label in CLINICAL_CAT_ATTR_LABELS[attr]}
+        label_counts = {label: (attr_data == label).sum() for label in TABULAR_CAT_ATTR_LABELS[attr]}
         label_percentages = {label: round(count * 100 / len(attr_data), 1) for label, count in label_counts.items()}
         cat_attrs_desc[attr] = {"count": label_counts, "%": label_percentages}
     # Structure the boolean/categorical description as dataframe, with attributes as rows and descriptions as columns
@@ -80,7 +80,7 @@ def describe_patients(
     # Join descriptions of numerical and categorical attributes
     patients_attrs_desc = num_attrs_desc.join(cat_attrs_desc, how="outer")
     # Index w.r.t. attributes and sort the attributes and statistics
-    patients_attrs_desc = patients_attrs_desc.T.reindex(clinical_attrs)[num_stats + cat_stats]
+    patients_attrs_desc = patients_attrs_desc.T.reindex(tabular_attrs)[num_stats + cat_stats]
 
     # Cast numerical stats to float, since the transpose leads all columns to be of generic 'object' type
     patients_attrs_desc[num_stats] = patients_attrs_desc[num_stats].astype(float)
@@ -89,19 +89,19 @@ def describe_patients(
         summaries = {}
 
         for attr in patients_attrs_desc.index:
-            if attr in ClinicalAttribute.boolean_attrs():
+            if attr in TabularAttribute.boolean_attrs():
                 attr_summary = (
                     f"{patients_attrs_desc.loc[attr, 'count'][True]} "
                     f"({patients_attrs_desc.loc[attr, '%'][True]:.0f})"
                 )
-            elif attr in ClinicalAttribute.categorical_attrs():
+            elif attr in TabularAttribute.categorical_attrs():
                 attr_summary = "\n".join(
                     f"{cat_count} ({patients_attrs_desc.loc[attr, '%'][cat]:.0f})"
                     for cat, cat_count in patients_attrs_desc.loc[attr, "count"].items()
                 )
-            else:  # attr in ClinicalAttribute.numerical_attrs():
-                dec = NUM_CLINICAL_ATTR_DECIMALS[attr]
-                match summary_stat := NUM_CLINICAL_ATTR_STATS[attr]:
+            else:  # attr in TabularAttribute.numerical_attrs():
+                dec = _NUM_ATTR_DECIMALS[attr]
+                match summary_stat := _NUM_ATTR_STATS[attr]:
                     case "mean":
                         mean, std = patients_attrs_desc[["mean", "std"]].loc[attr]
                         attr_summary = f"{mean:.{dec}f} ± {std:.{dec}f}"
@@ -132,9 +132,9 @@ def main():
     parser = Patients.add_args(parser)
     parser.add_argument(
         "--attributes",
-        type=ClinicalAttribute,
+        type=TabularAttribute,
         nargs="+",
-        choices=list(ClinicalAttribute),
+        choices=list(TabularAttribute),
         help="Attributes to describe",
     )
     parser.add_argument(
@@ -152,7 +152,7 @@ def main():
     args = parser.parse_args()
     kwargs = vars(args)
 
-    clinical_attrs, subset_files, output_dir = kwargs.pop("attributes"), kwargs.pop("subsets"), kwargs.pop("output_dir")
+    attrs, subset_files, output_dir = kwargs.pop("attributes"), kwargs.pop("subsets"), kwargs.pop("output_dir")
 
     if subset_files:
         subsets = {subset_file.stem: subset_file.read_text().splitlines() for subset_file in subset_files}
@@ -176,7 +176,7 @@ def main():
             ]
 
         patients_attrs_desc_by_subset[subset] = describe_patients(
-            Patients(**kwargs, include_patients=subset_patients), clinical_attrs=clinical_attrs, format_summary=True
+            Patients(**kwargs, include_patients=subset_patients), tabular_attrs=attrs, format_summary=True
         )
 
     # Save the description for each subset

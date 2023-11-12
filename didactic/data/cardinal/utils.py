@@ -2,7 +2,7 @@ from typing import Hashable, Iterable, Mapping, Tuple
 
 import numpy as np
 import pandas as pd
-from vital.data.cardinal.config import CardinalTag, ImageAttribute
+from vital.data.cardinal.config import CardinalTag, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
 from vital.data.cardinal.utils.attributes import build_attributes_dataframe
 from vital.data.cardinal.utils.data_struct import Patient
@@ -107,25 +107,25 @@ def build_knn_dataframe(patients: Patients, kneighbors: np.ndarray, cat_to_num: 
     return neigh_data
 
 
-def build_img_attr_by_patient_group_dataframe(
+def build_time_series_attr_by_patient_group_dataframe(
     patients_groups: Mapping[Hashable, Iterable[Patient]],
-    attr: Tuple[ViewEnum, ImageAttribute],
+    attr: Tuple[ViewEnum, TimeSeriesAttribute],
     group_desc: str = "group",
     mask_tag: str = CardinalTag.mask,
     resampling_rate: int = 128,
 ) -> pd.DataFrame:
-    """Builds a dataframe with the average curve of an image attribute by patient group.
+    """Builds a dataframe with the average curve of a time-series attribute by patient group.
 
     Args:
         patients_groups: Mapping between group ID and the patients in that group.
-        attr: A pair of view and image attribute to compute the average curve of.
+        attr: A pair of view and time-series attribute to compute the average curve of.
         group_desc: Description of the semantic meaning of the groups.
-        mask_tag: Tag of the segmentation mask for which to extract the image attribute data.
-        resampling_rate: Number of points at which to resample the image attribute curves from each patient, so that
-            they can be easily compared and aggregated together.
+        mask_tag: Tag of the segmentation mask for which to extract the time-series attribute data.
+        resampling_rate: Number of points at which to resample the time-series attribute curves from each patient, so
+            that they can be easily compared and aggregated together.
 
     Returns:
-        Dataframe with the average curve of an image attribute by patient group, in long format.
+        Dataframe with the average curve of an time-series attribute by patient group, in long format.
     """
     resampling_fn = Interp1d(resampling_rate)
 

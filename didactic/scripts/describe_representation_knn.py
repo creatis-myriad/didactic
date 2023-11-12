@@ -9,13 +9,13 @@ import seaborn as sns
 import seaborn.objects as so
 from matplotlib.axes import Axes
 from sklearn.neighbors import NearestNeighbors
-from vital.data.cardinal.config import CardinalTag, ClinicalAttribute, ImageAttribute
+from vital.data.cardinal.config import CardinalTag, TabularAttribute, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
-from vital.data.cardinal.utils.attributes import CLINICAL_ATTR_UNITS, IMAGE_ATTR_LABELS
+from vital.data.cardinal.utils.attributes import CLINICAL_ATTR_UNITS, TIME_SERIES_ATTR_LABELS
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.data.cardinal.utils.itertools import Patients
 
-from didactic.data.cardinal.utils import build_img_attr_by_patient_group_dataframe, build_knn_dataframe
+from didactic.data.cardinal.utils import build_knn_dataframe, build_time_series_attr_by_patient_group_dataframe
 from didactic.tasks.cardiac_multimodal_representation import CardiacMultimodalRepresentationTask
 
 logger = logging.getLogger(__name__)
@@ -57,24 +57,24 @@ def find_nearest_neighbors(
     return kneighbors_ids
 
 
-def plot_clinical_attrs_variability_figures(
+def plot_tabular_attrs_variability_figures(
     patients: Patients,
     kneighbors_ids: np.ndarray,
-    var_attr: ClinicalAttribute,
-    clinical_attrs: Sequence[ClinicalAttribute] = None,
+    var_attr: TabularAttribute,
+    tabular_attrs: Sequence[TabularAttribute] = None,
     agg: str = "mean",
     plot_kwargs: dict = None,
     dots_layer_kwargs: dict = None,
     polyfit_layer_kwargs: dict = None,
 ) -> Iterator[Tuple[str, so.Plot]]:
-    """Plots the variability of locally-aggregated clinical attrs across multiple encodings w.r.t. a ref. clinical attr.
+    """Plots the variability of locally-aggregated tabular attrs across multiple encodings w.r.t. a ref. tabular attr.
 
     Args:
         patients: Collection of patients data from which to extract the attributes.
         kneighbors_ids: Array (of `Patient.Id`s) of shape `(n_encodings, n_patients, n_neighbors)` containing the IDs of
             the nearest neighbors of each patient for each encoding.
-        var_attr: Reference clinical attribute w.r.t. which to plot the variability of the attributes.
-        clinical_attrs: Subset of clinical attributes on which to compile the results. If not provided, will default to
+        var_attr: Reference tabular attribute w.r.t. which to plot the variability of the attributes.
+        tabular_attrs: Subset of tabular attributes on which to compile the results. If not provided, will default to
             all available attributes.
         agg: Aggregation function to apply to the neighborhood of each patient.
         plot_kwargs: Parameters to forward to the call to `seaborn.object.Plot`.
@@ -83,8 +83,8 @@ def plot_clinical_attrs_variability_figures(
             layer.
 
     Returns:
-        Iterator over figures (and their corresponding titles) plotting the variability of locally-aggregated clinical
-        attrs across multiple encodings w.r.t. a ref. clinical attr.
+        Iterator over figures (and their corresponding titles) plotting the variability of locally-aggregated tabular
+        attrs across multiple encodings w.r.t. a ref. tabular attr.
     """
     if plot_kwargs is None:
         plot_kwargs = {}
@@ -95,8 +95,8 @@ def plot_clinical_attrs_variability_figures(
 
     # Gather the data of the nearest neighbors of each patient for each encoding
     neigh_data = build_knn_dataframe(patients, kneighbors_ids, cat_to_num=True)
-    if clinical_attrs is not None:
-        neigh_data = neigh_data[clinical_attrs]
+    if tabular_attrs is not None:
+        neigh_data = neigh_data[tabular_attrs]
 
     # Compute the mean of the attributes over the nearest neighbors of each patient
     neigh_agg_data = neigh_data.groupby(level=["model", "patient_id"]).agg(agg)
@@ -122,7 +122,7 @@ def plot_clinical_attrs_variability_figures(
 
         title = f"{attr}_wrt_{var_attr}"
         axis_labels = {
-            axis: "(ratio true/false)" if attr in ClinicalAttribute.boolean_attrs() else CLINICAL_ATTR_UNITS[attr][0]
+            axis: "(ratio true/false)" if attr in TabularAttribute.boolean_attrs() else CLINICAL_ATTR_UNITS[attr][0]
             for axis, attr in zip(["x", "y"], (var_attr, attr))
         }
         plot = plot.label(title=title, **axis_labels)
@@ -130,32 +130,32 @@ def plot_clinical_attrs_variability_figures(
         yield title, plot
 
 
-def plot_img_attrs_variability_figures(
+def plot_time_series_attrs_variability_figures(
     patients: Patients,
     kneighbors_ids: np.ndarray,
-    var_attr: ClinicalAttribute,
-    image_attrs: Sequence[Tuple[ViewEnum, ImageAttribute]],
+    var_attr: TabularAttribute,
+    time_series_attrs: Sequence[Tuple[ViewEnum, TimeSeriesAttribute]],
     agg: str = "mean",
     mask_tag: str = CardinalTag.mask,
     n_bins: int = 5,
 ) -> Iterator[Tuple[str, Axes]]:
-    """Plots the variability of locally-aggregated image attrs across multiple encodings w.r.t. a ref. clinical attr.
+    """Plots the variability of locally-aggregated time-series attrs across multiple encodings w.r.t. a ref. tab. attr.
 
     Args:
         patients: Collection of patients data from which to extract the attributes.
         kneighbors_ids: Array (of `Patient.Id`s) of shape `(n_encodings, n_patients, n_neighbors)` containing the IDs of
             the nearest neighbors of each patient for each encoding.
-        var_attr: Reference clinical attribute w.r.t. which to plot the variability of the attributes.
-        image_attrs: Subset of image-based attributes derived from segmentations (identified by view/attribute pairs)
-            for which to plot the variability between bins of the reference clinical attribute.
+        var_attr: Reference tabular attribute w.r.t. which to plot the variability of the attributes.
+        time_series_attrs: Subset of time-series attributes derived from segmentations (identified by view/attribute
+            pairs) for which to plot the variability between bins of the reference tabular attribute.
         agg: Aggregation function to apply to the neighborhood of each patient.
-        mask_tag: Tag of the segmentation mask for which to extract the image attributes.
-        n_bins: Number of bins by which to divide the population and over which to compute the variability of the image
-            attributes.
+        mask_tag: Tag of the segmentation mask for which to extract the time-series attributes.
+        n_bins: Number of bins by which to divide the population and over which to compute the variability of the
+            time-series attributes.
 
     Returns:
-        Iterator over figures (and their corresponding titles) plotting the variability of locally-aggregated image
-        attrs across multiple encodings w.r.t. a ref. clinical attr.
+        Iterator over figures (and their corresponding titles) plotting the variability of locally-aggregated
+        time-series attrs across multiple encodings w.r.t. a ref. tabular attr.
     """
     # Gather the reference attribute data of the nearest neighbors of each patient for each encoding
     neigh_data = build_knn_dataframe(patients, kneighbors_ids, cat_to_num=True)[var_attr]
@@ -182,18 +182,22 @@ def plot_img_attrs_variability_figures(
         for bin_idx, patient_ids in patient_ids_by_bin.items()
     }
 
-    # For each image attribute, build the dataframe of the mean curve for each bin and plot the curves for each bin
-    for img_attr in image_attrs:
-        neigh_agg_img_attrs_data = build_img_attr_by_patient_group_dataframe(
-            patients_by_bin, img_attr, group_desc="bin", mask_tag=mask_tag
+    # For each time-series attr, build the dataframe of the mean curve for each bin and plot the curves for each bin
+    for time_series_attr in time_series_attrs:
+        neigh_agg_time_series_attr_data = build_time_series_attr_by_patient_group_dataframe(
+            patients_by_bin, time_series_attr, group_desc="bin", mask_tag=mask_tag
         )
 
         with sns.axes_style("darkgrid"):
             plot = sns.lineplot(
-                data=neigh_agg_img_attrs_data, x="time", y="val", hue="bin", hue_order=sorted(bin_labels.unique())
+                data=neigh_agg_time_series_attr_data,
+                x="time",
+                y="val",
+                hue="bin",
+                hue_order=sorted(bin_labels.unique()),
             )
-        title = f"{'/'.join(img_attr)}_wrt_{var_attr}_bins"
-        plot.set(title=title, ylabel=IMAGE_ATTR_LABELS[img_attr[1]])
+        title = f"{'/'.join(time_series_attr)}_wrt_{var_attr}_bins"
+        plot.set(title=title, ylabel=TIME_SERIES_ATTR_LABELS[time_series_attr[1]])
         plot.legend(title=f"{var_attr} bin")
 
         yield title, plot
@@ -231,32 +235,32 @@ def main():
     )
     parser.add_argument(
         "--reference_attr",
-        type=ClinicalAttribute,
-        default=ClinicalAttribute.ht_severity,
-        help="Reference clinical attribute w.r.t. which to plot the variability of the other attributes",
+        type=TabularAttribute,
+        default=TabularAttribute.ht_severity,
+        help="Reference tabular attribute w.r.t. which to plot the variability of the other attributes",
     )
     parser.add_argument(
-        "--clinical_attrs",
-        type=ClinicalAttribute,
+        "--tabular_attrs",
+        type=TabularAttribute,
         nargs="*",
-        choices=list(ClinicalAttribute),
-        help="Subset of clinical attributes on which to compile the results. If not provided, will default to all "
+        choices=list(TabularAttribute),
+        help="Subset of tabular attributes on which to compile the results. If not provided, will default to all "
         "available attributes",
     )
     parser.add_argument(
-        "--image_attrs",
-        type=ImageAttribute,
-        choices=list(ImageAttribute),
+        "--time_series_attrs",
+        type=TimeSeriesAttribute,
+        choices=list(TimeSeriesAttribute),
         nargs="*",
-        default=list(ImageAttribute),
-        help="Subset of image-based attributes derived from segmentations for which to plot the intra/inter-cluster "
+        default=list(TimeSeriesAttribute),
+        help="Subset of time-series attributes derived from segmentations for which to plot the intra/inter-cluster "
         "variability",
     )
     parser.add_argument(
         "--mask_tag",
         type=str,
         default=CardinalTag.mask,
-        help="Tag of the segmentation mask for which to extract the image attributes",
+        help="Tag of the segmentation mask for which to extract the time-series attributes",
     )
     parser.add_argument(
         "--agg",
@@ -266,30 +270,30 @@ def main():
         help="Aggregation function to apply to the neighborhood of each patient",
     )
     parser.add_argument(
-        "--clinical_plot_kwargs",
+        "--tabular_plot_kwargs",
         type=yaml_flow_collection,
         metavar="{ARG1:VAL1,ARG2:VAL2,...}",
-        help="Parameters to forward to the call to `seaborn.object.Plot` for clinical attributes figures",
+        help="Parameters to forward to the call to `seaborn.object.Plot` for tabular attributes figures",
     )
     parser.add_argument(
-        "--clinical_dots_kwargs",
+        "--tabular_dots_kwargs",
         type=yaml_flow_collection,
         metavar="{ARG1:VAL1,ARG2:VAL2,...}",
-        help="Parameters to forward to the call to `seaborn.object.Plot.add` for the scatter plot layer in clinical "
+        help="Parameters to forward to the call to `seaborn.object.Plot.add` for the scatter plot layer in tabular "
         "attributes figures",
     )
     parser.add_argument(
-        "--clinical_polyfit_kwargs",
+        "--tabular_polyfit_kwargs",
         type=yaml_flow_collection,
         metavar="{ARG1:VAL1,ARG2:VAL2,...}",
         help="Parameters to forward to the call to `seaborn.object.Plot.add` for the polynomial regression layer in "
-        "clinical attributes figures",
+        "tabular attributes figures",
     )
     parser.add_argument(
-        "--image_n_bins",
+        "--time_series_n_bins",
         type=int,
         default=5,
-        help="Number of bins by which to divide the population and over each of which to aggregate the image "
+        help="Number of bins by which to divide the population and over each of which to aggregate the time-series "
         "attributes",
     )
     parser.add_argument(
@@ -305,14 +309,14 @@ def main():
         models_ckpts,
         neigh_kwargs,
         ref_attr,
-        clinical_attrs,
-        image_attrs,
+        tabular_attrs,
+        time_series_attrs,
         mask_tag,
         agg,
         plot_kwargs,
         dots_kwargs,
         polyfit_kwargs,
-        img_n_bins,
+        time_series_n_bins,
         output_dir,
     ) = list(
         map(
@@ -321,19 +325,21 @@ def main():
                 "models_ckpts",
                 "neigh_kwargs",
                 "reference_attr",
-                "clinical_attrs",
-                "image_attrs",
+                "tabular_attrs",
+                "time_series_attrs",
                 "mask_tag",
                 "agg",
-                "clinical_plot_kwargs",
-                "clinical_dots_kwargs",
-                "clinical_polyfit_kwargs",
-                "image_n_bins",
+                "tabular_plot_kwargs",
+                "tabular_dots_kwargs",
+                "tabular_polyfit_kwargs",
+                "time_series_n_bins",
                 "output_dir",
             ],
         )
     )
-    image_attrs_keys = [(view, image_attr) for view, image_attr in itertools.product(args.views, image_attrs)]
+    time_series_attrs_keys = [
+        (view, time_series_attr) for view, time_series_attr in itertools.product(args.views, time_series_attrs)
+    ]
     if neigh_kwargs is None:
         neigh_kwargs = {}
 
@@ -353,25 +359,31 @@ def main():
     # Find the nearest neighbors of each patient for each encoding
     kneighbors_ids = find_nearest_neighbors(encodings, list(patients), **neigh_kwargs)
 
-    clinical_attrs_plots = plot_clinical_attrs_variability_figures(
+    tabular_attrs_plots = plot_tabular_attrs_variability_figures(
         patients,
         kneighbors_ids,
         ref_attr,
-        clinical_attrs=clinical_attrs,
+        tabular_attrs=tabular_attrs,
         agg=agg,
         plot_kwargs=plot_kwargs,
         dots_layer_kwargs=dots_kwargs,
         polyfit_layer_kwargs=polyfit_kwargs,
     )
-    image_attrs_plots = plot_img_attrs_variability_figures(
-        patients, kneighbors_ids, ref_attr, image_attrs_keys, agg=agg, mask_tag=mask_tag, n_bins=img_n_bins
+    time_series_attrs_plots = plot_time_series_attrs_variability_figures(
+        patients,
+        kneighbors_ids,
+        ref_attr,
+        time_series_attrs_keys,
+        agg=agg,
+        mask_tag=mask_tag,
+        n_bins=time_series_n_bins,
     )
 
-    # Plot the variability of the clinical and image attributes
+    # Plot the variability of the tabular and image attributes
     output_dir.mkdir(parents=True, exist_ok=True)  # Prepare the output folder for the method
-    n_plots = (len(clinical_attrs) if clinical_attrs else len(ClinicalAttribute)) + len(image_attrs_keys)
+    n_plots = (len(tabular_attrs) if tabular_attrs else len(TabularAttribute)) + len(time_series_attrs_keys)
     for title, plot in tqdm(
-        itertools.chain(clinical_attrs_plots, image_attrs_plots),
+        itertools.chain(tabular_attrs_plots, time_series_attrs_plots),
         desc=f"Plotting the variability of the attributes w.r.t. {ref_attr}",
         unit="attr",
         total=n_plots,

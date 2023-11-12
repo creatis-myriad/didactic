@@ -5,11 +5,11 @@ from matplotlib.axes import Axes
 from vital.data.cardinal.utils.attributes import plot_attributes_wrt_time
 
 from didactic.results.cardinal.utils.attributes_plot import AttributesPlots
-from didactic.results.cardinal.utils.image_attributes import ImageAttributesMixin
+from didactic.results.cardinal.utils.time_series_attributes import TimeSeriesAttributesMixin
 
 
-class ImageAttributesPlots(ImageAttributesMixin, AttributesPlots):
-    """Class that plots image attributes w.r.t. time."""
+class TimeSeriesAttributesPlots(TimeSeriesAttributesMixin, AttributesPlots):
+    """Class that plots time-series attributes w.r.t. time."""
 
     def _plot_attributes_wrt_time(self, attrs: pd.DataFrame, plot_title_root: str) -> Iterator[Tuple[str, Axes]]:
         yield from plot_attributes_wrt_time(
@@ -26,7 +26,7 @@ class ImageAttributesPlots(ImageAttributesMixin, AttributesPlots):
 
 def main():
     """Run the script."""
-    ImageAttributesPlots.main()
+    TimeSeriesAttributesPlots.main()
 
 
 if __name__ == "__main__":

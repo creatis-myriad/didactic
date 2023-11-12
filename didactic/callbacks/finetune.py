@@ -75,16 +75,16 @@ class TransformerEncoderFreeze(Callback):
 
             # Check if tokenizers are models before marking them to be frozen, so that we'll not try to freeze
             # other possible types of tokenizers that are not `nn.Module`s (e.g. functions)
-            if isinstance(pl_module.clinical_tokenizer, nn.Module):
-                modules_to_freeze.append(pl_module.clinical_tokenizer)
-            if isinstance(pl_module.img_tokenizer, nn.Module):
-                modules_to_freeze.append(pl_module.img_tokenizer)
+            if isinstance(pl_module.tabular_tokenizer, nn.Module):
+                modules_to_freeze.append(pl_module.tabular_tokenizer)
+            if isinstance(pl_module.time_series_tokenizer, nn.Module):
+                modules_to_freeze.append(pl_module.time_series_tokenizer)
 
             # Add optional models/parameters if they're used in the model
             if pl_module.hparams.cls_token:
                 modules_to_freeze.append(pl_module.cls_token)
-            if pl_module.hparams.sequential_pooling:
-                modules_to_freeze.append(pl_module.sequential_pooling)
+            if pl_module.hparams.sequence_pooling:
+                modules_to_freeze.append(pl_module.sequence_pooling)
 
         if layers_to_freeze == list(range(num_layers)):
             # If all layers of the encoder are frozen

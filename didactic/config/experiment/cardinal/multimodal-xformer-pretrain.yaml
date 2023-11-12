@@ -6,7 +6,7 @@ defaults:
 trainer:
   max_epochs: 2500
 
-excluded_clinical_attrs: ???
+exclude_tabular_attrs: ???
 
 task:
   contrastive_loss:
@@ -16,7 +16,7 @@ task:
 
 hydra:
   run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/pretrain/${experiment_dirname}/excluded_clinical_attrs=${excluded_clinical_attrs}/${hydra.job.override_dirname}
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/pretrain/${experiment_dirname}/exclude_tabular_attrs=${exclude_tabular_attrs}/${hydra.job.override_dirname}
   sweep:
     dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/pretrain
-    subdir: ${experiment_dirname}/excluded_clinical_attrs=${excluded_clinical_attrs}/${hydra.job.override_dirname}
+    subdir: ${experiment_dirname}/exclude_tabular_attrs=${exclude_tabular_attrs}/${hydra.job.override_dirname}

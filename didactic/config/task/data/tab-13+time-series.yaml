@@ -1,7 +1,8 @@
 # @package _global_
 
 task:
-  clinical_attrs:
+  tabular_attrs:
+    # Top 13 tabular attributes from patient records
     - sbp_tte
     - pp_tte
     - age
@@ -15,4 +16,5 @@ task:
     - a_velocity
     - ddd
     - la_volume
-  img_attrs: []
+
+  time_series_attrs: ${data.process_patient_kwargs.time_series_attrs}

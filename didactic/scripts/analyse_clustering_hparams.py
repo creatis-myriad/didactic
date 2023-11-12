@@ -20,7 +20,7 @@ def main():
         "hparams_files",
         nargs="+",
         type=Path,
-        help="Paths to YAML config file of the best clustering hyperparameters found for an encoder amodel",
+        help="Paths to YAML config file of the best clustering hyperparameters found for an encoder model",
     )
     parser.add_argument(
         "--hparams",

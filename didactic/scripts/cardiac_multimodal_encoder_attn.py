@@ -53,7 +53,7 @@ def main():
         "--mask_tag",
         type=str,
         default=CardinalTag.mask,
-        help="Tag of the segmentation mask for which to extract the image attributes",
+        help="Tag of the segmentation mask for which to extract the time-series attributes",
     )
     parser.add_argument(
         "--use_attention_rollout",

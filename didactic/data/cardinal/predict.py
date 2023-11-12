@@ -12,12 +12,12 @@ from pytorch_lightning.callbacks.prediction_writer import WriteInterval
 from scipy import stats
 from sklearn.metrics import accuracy_score, mean_absolute_error
 from torch import Tensor
-from vital.data.cardinal.config import ClinicalAttribute, ImageAttribute
+from vital.data.cardinal.config import TabularAttribute, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
 from vital.data.cardinal.data_module import PREDICT_DATALOADERS_SUBSETS
-from vital.data.cardinal.datapipes import PatientData, filter_image_attributes
+from vital.data.cardinal.datapipes import PatientData, filter_time_series_attributes
 from vital.data.cardinal.utils.attributes import (
-    CLINICAL_CAT_ATTR_LABELS,
+    TABULAR_CAT_ATTR_LABELS,
     build_attributes_dataframe,
     plot_attributes_wrt_time,
 )
@@ -29,7 +29,7 @@ from didactic.tasks.cardiac_sequence_attrs_ae import CardiacSequenceAttributesAu
 
 
 class CardiacSequenceAttributesPredictionWriter(BasePredictionWriter):
-    """Prediction writer that plots reconstructed image attributes and plots the latent space manifold."""
+    """Prediction writer that plots reconstructed time-series attributes and plots the latent space manifold."""
 
     def __init__(self, write_path: str | Path = None, embedding_kwargs: Dict[str, Any] = None):
         """Initializes class instance.
@@ -62,7 +62,7 @@ class CardiacSequenceAttributesPredictionWriter(BasePredictionWriter):
         self,
         trainer: "pl.Trainer",
         pl_module: CardiacSequenceAttributesAutoencoder,
-        prediction: Dict[Tuple[ViewEnum, ImageAttribute], Tuple[Tensor, Tensor]],
+        prediction: Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tuple[Tensor, Tensor]],
         batch_indices: Optional[Sequence[int]],
         batch: PatientData,
         batch_idx: int,
@@ -83,17 +83,17 @@ class CardiacSequenceAttributesPredictionWriter(BasePredictionWriter):
         patient_id = list(trainer.datamodule.subsets_patients[PREDICT_DATALOADERS_SUBSETS[dataloader_idx]])[batch_idx]
 
         # Collect the attributes predictions and convert them to numpy arrays
-        img_attrs_reconstructions = {
+        time_series_attrs_reconstructions = {
             attr_key: attr_prediction[0].cpu().numpy() for attr_key, attr_prediction in prediction.items()
         }
         # Collect the attributes data and convert it to numpy arrays,
         # only keeping the attributes for which we have predictions
-        img_attrs = {
+        time_series_attrs = {
             attr_key: attr.cpu().numpy()
-            for attr_key, attr in filter_image_attributes(batch).items()
-            if attr_key in img_attrs_reconstructions
+            for attr_key, attr in filter_time_series_attributes(batch).items()
+            if attr_key in time_series_attrs_reconstructions
         }
-        attrs = {"data": img_attrs, "pred": img_attrs_reconstructions}
+        attrs = {"data": time_series_attrs, "pred": time_series_attrs_reconstructions}
 
         # Plot the curves for each attribute w.r.t. time
         attrs_df = build_attributes_dataframe(attrs, normalize_time=True)
@@ -107,7 +107,7 @@ class CardiacSequenceAttributesPredictionWriter(BasePredictionWriter):
         self,
         trainer: "pl.Trainer",
         pl_module: CardiacSequenceAttributesAutoencoder,
-        predictions: Sequence[Sequence[Dict[Tuple[ViewEnum, ImageAttribute], Tuple[Tensor, Tensor]]]],
+        predictions: Sequence[Sequence[Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tuple[Tensor, Tensor]]]],
         batch_indices: Optional[Sequence[Any]],
     ) -> None:
         """Saves plots of the distribution of attributes' encodings.
@@ -195,7 +195,7 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
         Args:
             trainer: `Trainer` used in the experiment.
             pl_module: `LightningModule` used in the experiment.
-            predictions: Sequences of encoder output features and predicted clinical attribute for each patient. There
+            predictions: Sequences of encoder output features and predicted tabular attributes for each patient. There
                 is one sublist for each prediction dataloader provided.
             batch_indices: Indices of all the batches whose outputs are provided.
         """
@@ -209,16 +209,16 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
     def _write_features_plots(
         self, trainer: "pl.Trainer", pl_module: CardiacMultimodalRepresentationTask, predictions: Sequence[Any]
     ) -> None:
-        """Plots the distribution of features learned by the encoder w.r.t. clinical attributes and some metadata.
+        """Plots the distribution of features learned by the encoder w.r.t. tabular attributes and some metadata.
 
         Args:
             trainer: `Trainer` used in the experiment.
             pl_module: `LightningModule` used in the experiment.
-            predictions: Sequences of encoder output features and predicted clinical attribute for each patient. There
+            predictions: Sequences of encoder output features and predicted tabular attributes for each patient. There
                 is one sublist for each prediction dataloader provided.
         """
         prediction_example = predictions[0][0]  # 1st: subset, 2nd: batch
-        # Pre-compute the list of attributes for which we have a unimodal parameter, since this output might be None
+        # Pre-compute the list of attributes for which we have an unimodal parameter, since this output might be None
         # and we don't want to access it in that case
         ordinal_attrs = list(prediction_example[2]) if prediction_example[2] else []
         features = {
@@ -255,7 +255,7 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
         plots = {
             f"features_wrt_{index_name}": {
                 "hue": index_name,
-                "hue_order": CLINICAL_CAT_ATTR_LABELS.get(index_name),  # Use categorical attrs' predefined labels order
+                "hue_order": TABULAR_CAT_ATTR_LABELS.get(index_name),  # Use categorical attrs' predefined labels order
             }
             for index_name in features_df.index.names
             if index_name != "patient"
@@ -282,14 +282,14 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
         Args:
             trainer: `Trainer` used in the experiment.
             pl_module: `LightningModule` used in the experiment.
-            predictions: Sequences of encoder output features and predicted clinical attribute for each patient. There
+            predictions: Sequences of encoder output features and predicted tabular attributes for each patient. There
                 is one sublist for each prediction dataloader provided.
         """
         target_categorical_attrs = [
-            attr for attr in pl_module.hparams.predict_losses if attr in ClinicalAttribute.categorical_attrs()
+            attr for attr in pl_module.hparams.predict_losses if attr in TabularAttribute.categorical_attrs()
         ]
         target_numerical_attrs = [
-            attr for attr in pl_module.hparams.predict_losses if attr in ClinicalAttribute.numerical_attrs()
+            attr for attr in pl_module.hparams.predict_losses if attr in TabularAttribute.numerical_attrs()
         ]
 
         for subset, subset_predictions in zip(PREDICT_DATALOADERS_SUBSETS, predictions):
@@ -304,7 +304,7 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
                     for attr in target_categorical_attrs:
                         patient_categorical_data.update(
                             {
-                                f"{attr}_prediction": CLINICAL_CAT_ATTR_LABELS[attr][attr_predictions[attr].argmax()],
+                                f"{attr}_prediction": TABULAR_CAT_ATTR_LABELS[attr][attr_predictions[attr].argmax()],
                                 f"{attr}_target": patient.attrs.get(attr, np.nan),
                             }
                         )

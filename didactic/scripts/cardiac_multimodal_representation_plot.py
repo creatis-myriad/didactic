@@ -3,8 +3,8 @@ from typing import Dict, Iterator, Sequence, Tuple
 import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
-from vital.data.cardinal.config import CardinalTag, ClinicalAttribute
-from vital.data.cardinal.utils.attributes import CLINICAL_CAT_ATTR_LABELS
+from vital.data.cardinal.config import CardinalTag, TabularAttribute
+from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.data.cardinal.utils.itertools import Patients
 from vital.utils.plot import embedding_scatterplot
@@ -16,19 +16,19 @@ from didactic.tasks.utils import encode_patients
 def plot_patients_embeddings(
     model: CardiacMultimodalRepresentationTask,
     patients: Patients,
-    plot_clinical_attrs: Sequence[ClinicalAttribute] = None,
+    plot_tabular_attrs: Sequence[TabularAttribute] = None,
     categorical_attrs_lists: Dict[str, Dict[str, Sequence[Patient.Id]]] = None,
     mask_tag: str = CardinalTag.mask,
     progress_bar: bool = False,
     **embedding_kwargs,
-) -> Iterator[Tuple[ClinicalAttribute | str, Axes]]:
+) -> Iterator[Tuple[TabularAttribute | str, Axes]]:
     """Generates 2D scatter plots of patients' encodings, labeled w.r.t. specific attributes.
 
     Args:
         model: Transformer encoder model to use for inference.
         patients: (N) Patients to embed.
         mask_tag: Tag of the segmentation mask for which to extract the image attributes.
-        plot_clinical_attrs: Patients' clinical attributes w.r.t. which to plot the embedding.
+        plot_tabular_attrs: Patients' tabular attributes w.r.t. which to plot the embedding.
         categorical_attrs_lists: Nested mapping listing, for each additional categorical attribute, the patients
             belonging to each of the attribute's labels.
         progress_bar: If ``True``, enables progress bars detailing the progress of encoding patients.
@@ -38,18 +38,18 @@ def plot_patients_embeddings(
     Returns:
         An iterator over the attributes and associated scatter plots.
     """
-    if plot_clinical_attrs is None and categorical_attrs_lists is None:
+    if plot_tabular_attrs is None and categorical_attrs_lists is None:
         raise ValueError(
-            "You have specified neither built-in attributes (`plot_attrs` is None) nor custom attributes "
+            "You have specified neither built-in attributes (`plot_tabular_attrs` is None) nor custom attributes "
             "(`categorical_attrs_lists`) w.r.t. which to plot the embeddings. Specify at least one attribute of either "
             "type to plot embeddings of the patients."
         )
 
-    if plot_clinical_attrs is None:
-        plot_clinical_attrs = []
+    if plot_tabular_attrs is None:
+        plot_tabular_attrs = []
     if categorical_attrs_lists is None:
         categorical_attrs_lists = {}
-    plot_attrs = plot_clinical_attrs + list(categorical_attrs_lists)
+    plot_attrs = plot_tabular_attrs + list(categorical_attrs_lists)
 
     # Encode the data using the model
     patient_encodings = pd.DataFrame(
@@ -60,7 +60,7 @@ def plot_patients_embeddings(
     patient_encodings = patient_encodings.join(
         pd.DataFrame.from_dict(
             {
-                patient.id: {attr: patient.attrs.get(attr) for attr in plot_clinical_attrs}
+                patient.id: {attr: patient.attrs.get(attr) for attr in plot_tabular_attrs}
                 for patient in patients.values()
             },
             orient="index",
@@ -84,9 +84,9 @@ def plot_patients_embeddings(
     # Transfer the attributes data from the columns to the index, as required by the generic embedding function later
     patient_encodings = patient_encodings.set_index(plot_attrs, append=True)
 
-    # Determine from the clinical attributes' predefined order or the natural ordering in the custom attributes the
+    # Determine from the tabular attributes' predefined order or the natural ordering in the custom attributes the
     # hue order for the plots
-    plot_attrs_order = {attr: CLINICAL_CAT_ATTR_LABELS.get(attr) for attr in plot_clinical_attrs}
+    plot_attrs_order = {attr: TABULAR_CAT_ATTR_LABELS.get(attr) for attr in plot_tabular_attrs}
     plot_attrs_order.update({attr: list(attr_lists) for attr, attr_lists in categorical_attrs_lists.items()})
 
     # Plot data w.r.t. attributes
@@ -128,12 +128,12 @@ def main():
         help="Tag of the segmentation mask for which to extract the image attributes",
     )
     parser.add_argument(
-        "--plot_clinical_attrs",
-        type=ClinicalAttribute,
+        "--plot_tabular_attrs",
+        type=TabularAttribute,
         nargs="+",
-        choices=list(ClinicalAttribute),
-        default=list(ClinicalAttribute),
-        help="Patients' clinical attributes w.r.t. which to plot the embedding",
+        choices=list(TabularAttribute),
+        default=list(TabularAttribute),
+        help="Patients' tabular attributes w.r.t. which to plot the embedding",
     )
     parser.add_argument(
         "--plot_categorical_attrs_dirs",
@@ -158,10 +158,10 @@ def main():
     args = parser.parse_args()
     kwargs = vars(args)
 
-    encoder_ckpt, mask_tag, plot_clinical_attrs, plot_categorical_attrs_dirs, embedding_kwargs, output_dir = (
+    encoder_ckpt, mask_tag, plot_tabular_attrs, plot_categorical_attrs_dirs, embedding_kwargs, output_dir = (
         kwargs.pop("pretrained_encoder"),
         kwargs.pop("mask_tag"),
-        kwargs.pop("plot_clinical_attrs"),
+        kwargs.pop("plot_tabular_attrs"),
         kwargs.pop("plot_categorical_attrs_dirs"),
         kwargs.pop("embedding_kwargs"),
         kwargs.pop("output_dir"),
@@ -191,7 +191,7 @@ def main():
     for attr, _ in plot_patients_embeddings(
         encoder,
         patients,
-        plot_clinical_attrs=plot_clinical_attrs,
+        plot_tabular_attrs=plot_tabular_attrs,
         categorical_attrs_lists=categorical_attrs_lists,
         mask_tag=mask_tag,
         progress_bar=True,

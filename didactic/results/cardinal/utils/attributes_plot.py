@@ -47,8 +47,8 @@ class AttributesPlots(ResultsProcessor):
         super().__init__(output_name="_".join([*inputs, self.desc]), **kwargs)
         if hue is None and style is None:
             raise ValueError(
-                "You must set at least one grouping variable, i.e. `hue` or `style`, with which to group the image "
-                "attributes' data."
+                "You must set at least one grouping variable, i.e. `hue` or `style`, with which to group the "
+                "time-series attributes' data."
             )
         self.normalize_time = normalize_time
         self.data_name = data_name

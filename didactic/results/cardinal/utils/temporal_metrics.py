@@ -14,7 +14,7 @@ from vital.utils.parsing import StoreDictKeyPair
 
 
 class TemporalMetrics(Metrics):
-    """Class that computes temporal coherence metrics on sequences of attributes' values."""
+    """Class that computes temporal coherence metrics on time-series attributes."""
 
     desc = "temporal_metrics"
     ResultsCollection = Views

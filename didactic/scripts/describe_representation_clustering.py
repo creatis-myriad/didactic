@@ -8,32 +8,32 @@ import pandas as pd
 import seaborn as sns
 import seaborn.objects as so
 from matplotlib.axes import Axes
-from vital.data.cardinal.config import CardinalTag, ClinicalAttribute, ImageAttribute
+from vital.data.cardinal.config import CardinalTag, TabularAttribute, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
-from vital.data.cardinal.utils.attributes import CLINICAL_ATTR_UNITS, CLINICAL_CAT_ATTR_LABELS, IMAGE_ATTR_LABELS
+from vital.data.cardinal.utils.attributes import CLINICAL_ATTR_UNITS, TABULAR_CAT_ATTR_LABELS, TIME_SERIES_ATTR_LABELS
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.data.cardinal.utils.itertools import Patients
 
-from didactic.data.cardinal.utils import build_clusterings_dataframe, build_img_attr_by_patient_group_dataframe
+from didactic.data.cardinal.utils import build_clusterings_dataframe, build_time_series_attr_by_patient_group_dataframe
 
 logger = logging.getLogger(__name__)
 
 
-def plot_clinical_attrs_variability_figures(
+def plot_tabular_attrs_variability_figures(
     patients: Patients,
     clusterings: Mapping[str, Mapping[Patient.Id, str]],
-    clinical_attrs: Sequence[ClinicalAttribute] = None,
+    tabular_attrs: Sequence[TabularAttribute] = None,
     num_clustering_agg: str = None,
     cat_plot_kwargs: dict = None,
     num_plot_kwargs: dict = None,
 ) -> Iterator[Tuple[str, Axes]]:
-    """Plots the variability of cluster-aggregated clinical attrs across multiple clusterings w.r.t. clusters.
+    """Plots the variability of cluster-aggregated tabular attributes across multiple clusterings w.r.t. clusters.
 
     Args:
         patients: Collection of patients data from which to extract the attributes.
         clusterings: Instances of clustering of the patients population, representation as mappings between patient IDs
             and cluster labels.
-        clinical_attrs: Subset of clinical attributes on which to compile the results. If not provided, will default to
+        tabular_attrs: Subset of tabular attributes on which to compile the results. If not provided, will default to
             all available attributes.
         num_clustering_agg: Aggregation function to use to aggregate the numerical attributes by clusters, before the
             aggregation across clusterings. If not provided, the attributes are aggregated by clusters and across
@@ -42,8 +42,8 @@ def plot_clinical_attrs_variability_figures(
         num_plot_kwargs: Parameters to forward to the call to `seaborn.boxplot` for numerical attributes.
 
     Returns:
-        Iterator over figures (and their corresponding titles) plotting the variability of cluster-aggregated clinical
-        attrs across multiple clusterings w.r.t. clusters.
+        Iterator over figures (and their corresponding titles) plotting the variability of cluster-aggregated tabular
+        attributes across multiple clusterings w.r.t. clusters.
     """
     if cat_plot_kwargs is None:
         cat_plot_kwargs = {}
@@ -52,8 +52,8 @@ def plot_clinical_attrs_variability_figures(
 
     # Gather the data of the patients in each cluster for each clustering
     clusterings_data = build_clusterings_dataframe(patients, clusterings)
-    if clinical_attrs is not None:
-        clusterings_data = clusterings_data[clinical_attrs]
+    if tabular_attrs is not None:
+        clusterings_data = clusterings_data[tabular_attrs]
 
     # Ignore `matplotlib.category` logger 'INFO' level logs to avoid repeated logs about categorical units parsable
     # as floats
@@ -65,7 +65,7 @@ def plot_clinical_attrs_variability_figures(
         attr_data = clusterings_data[attr]
 
         # Based on whether the attribute is categorical or numerical, define different types of plots
-        if attr in ClinicalAttribute.categorical_attrs():
+        if attr in TabularAttribute.categorical_attrs():
             # Compute the occurrence of each category for each cluster (including NA), across all clusterings
             attr_stats = attr_data.groupby(["model", "cluster"]).value_counts(normalize=True, dropna=False) * 100
             # After the NA values have been taken into account for the count, drop them
@@ -78,13 +78,13 @@ def plot_clinical_attrs_variability_figures(
             # For boolean attributes, convert the values to string so that seaborn can properly pick up label names
             # Avoids the following error: 'bool' object has no attribute 'startswith'
             # At the same time, assign relevant labels/hues/etc. for either boolean or categorical attributes
-            if attr in ClinicalAttribute.boolean_attrs():
+            if attr in TabularAttribute.boolean_attrs():
                 attr_stats = attr_stats.astype({attr: str})
                 ylabel = "(% true)"
-                hue_order = [str(val) for val in CLINICAL_CAT_ATTR_LABELS[attr]]
+                hue_order = [str(val) for val in TABULAR_CAT_ATTR_LABELS[attr]]
             else:
                 ylabel = "(% by label)"
-                hue_order = CLINICAL_CAT_ATTR_LABELS[attr]
+                hue_order = TABULAR_CAT_ATTR_LABELS[attr]
 
             # Use dodged barplots for categorical attributes
             with sns.axes_style("darkgrid"):
@@ -101,7 +101,7 @@ def plot_clinical_attrs_variability_figures(
 
             plot.set(title=title, ylabel=ylabel)
 
-        else:  # attr in ClinicalAttribute.numerical_attrs()
+        else:  # attr in TabularAttribute.numerical_attrs()
             if num_clustering_agg is not None:
                 # Aggregate the numerical attributes by clusters, before the aggregation across clusterings
                 attr_data = attr_data.groupby(["model", "cluster"]).agg(num_clustering_agg)
@@ -116,25 +116,25 @@ def plot_clinical_attrs_variability_figures(
         yield title, plot
 
 
-def plot_img_attrs_variability_figures(
+def plot_time_series_attrs_variability_figures(
     patients: Patients,
     clusterings: Mapping[str, Mapping[Patient.Id, str]],
-    image_attrs: Sequence[Tuple[ViewEnum, ImageAttribute]],
+    time_series_attrs: Sequence[Tuple[ViewEnum, TimeSeriesAttribute]],
     mask_tag: str = CardinalTag.mask,
 ) -> Iterator[Tuple[str, Axes]]:
-    """Plots the variability of cluster-aggregated image attrs across multiple clusterings w.r.t. clusters.
+    """Plots the variability of cluster-aggregated time-series attributes across multiple clusterings w.r.t. clusters.
 
     Args:
         patients: Collection of patients data from which to extract the attributes.
         clusterings: Instances of clustering of the patients population, representation as mappings between patient IDs
             and cluster labels.
-        image_attrs: Subset of image-based attributes derived from segmentations (identified by view/attribute pairs)
-            for which to plot the variability between bins of the reference clinical attribute.
-        mask_tag: Tag of the segmentation mask for which to extract the image attributes.
+        time_series_attrs: Subset of time-series attributes derived from segmentations (identified by view/attribute
+            pairs) for which to plot the variability between bins of the reference tabular attribute.
+        mask_tag: Tag of the segmentation mask for which to extract the time-series attributes.
 
     Returns:
-        Iterator over figures (and their corresponding titles) plotting the variability of cluster-aggregated image
-        attrs across multiple clusterings w.r.t. clusters.
+        Iterator over figures (and their corresponding titles) plotting the variability of cluster-aggregated
+        time-series attrs across multiple clusterings w.r.t. clusters.
     """
     # Convert clusterings from mapping between item IDs and cluster IDs to lists of patient IDs by cluster
     clusterings = {
@@ -162,18 +162,18 @@ def plot_img_attrs_variability_figures(
         for cluster_label in cluster_labels
     }
 
-    # For each image attribute, build the dataframe of the mean curve for each bin and plot the curves for each bin
-    for img_attr in image_attrs:
-        neigh_agg_img_attrs_data = build_img_attr_by_patient_group_dataframe(
-            patients_by_cluster, img_attr, group_desc="cluster", mask_tag=mask_tag
+    # For each time-series attr, build the dataframe of the mean curve for each bin and plot the curves for each bin
+    for time_series_attr in time_series_attrs:
+        time_series_attr_data = build_time_series_attr_by_patient_group_dataframe(
+            patients_by_cluster, time_series_attr, group_desc="cluster", mask_tag=mask_tag
         )
 
         with sns.axes_style("darkgrid"):
             plot = sns.lineplot(
-                data=neigh_agg_img_attrs_data, x="time", y="val", hue="cluster", hue_order=sorted(cluster_labels)
+                data=time_series_attr_data, x="time", y="val", hue="cluster", hue_order=sorted(cluster_labels)
             )
-        title = f"{'/'.join(img_attr)}_wrt_clusters"
-        plot.set(title=title, ylabel=IMAGE_ATTR_LABELS[img_attr[1]])
+        title = f"{'/'.join(time_series_attr)}_wrt_clusters"
+        plot.set(title=title, ylabel=TIME_SERIES_ATTR_LABELS[time_series_attr[1]])
 
         yield title, plot
 
@@ -210,27 +210,27 @@ def main():
     )
     parser = Patients.add_args(parser)
     parser.add_argument(
-        "--clinical_attrs",
-        type=ClinicalAttribute,
+        "--tabular_attrs",
+        type=TabularAttribute,
         nargs="*",
-        choices=list(ClinicalAttribute),
-        help="Subset of clinical attributes on which to compile the results. If not provided, will default to all "
+        choices=list(TabularAttribute),
+        help="Subset of tabular attributes on which to compile the results. If not provided, will default to all "
         "available attributes",
     )
     parser.add_argument(
-        "--image_attrs",
-        type=ImageAttribute,
-        choices=list(ImageAttribute),
+        "--time_series_attrs",
+        type=TimeSeriesAttribute,
+        choices=list(TimeSeriesAttribute),
         nargs="*",
-        default=list(ImageAttribute),
-        help="Subset of image-based attributes derived from segmentations for which to plot the intra/inter-cluster "
+        default=list(TimeSeriesAttribute),
+        help="Subset of time-series attributes derived from segmentations for which to plot the intra/inter-cluster "
         "variability",
     )
     parser.add_argument(
         "--mask_tag",
         type=str,
         default=CardinalTag.mask,
-        help="Tag of the segmentation mask for which to extract the image attributes",
+        help="Tag of the segmentation mask for which to extract the time-series attributes",
     )
     parser.add_argument(
         "--num_clustering_agg",
@@ -240,16 +240,16 @@ def main():
         "same time, leading to a higher reported variability.",
     )
     parser.add_argument(
-        "--clinical_cat_plot_kwargs",
+        "--tabular_cat_plot_kwargs",
         type=yaml_flow_collection,
         metavar="{ARG1:VAL1,ARG2:VAL2,...}",
-        help="Parameters to forward to the call to `seaborn.heatmap` for categorical clinical attributes figures",
+        help="Parameters to forward to the call to `seaborn.heatmap` for categorical tabular attributes figures",
     )
     parser.add_argument(
-        "--clinical_num_plot_kwargs",
+        "--tabular_num_plot_kwargs",
         type=yaml_flow_collection,
         metavar="{ARG1:VAL1,ARG2:VAL2,...}",
-        help="Parameters to forward to the call to `seaborn.boxplot` for categorical clinical attributes figures",
+        help="Parameters to forward to the call to `seaborn.boxplot` for categorical tabular attributes figures",
     )
     parser.add_argument(
         "--output_dir",
@@ -263,8 +263,8 @@ def main():
     (
         clustering_paths,
         clusterings_fmt,
-        clinical_attrs,
-        image_attrs,
+        tabular_attrs,
+        time_series_attrs,
         mask_tag,
         num_clustering_agg,
         cat_plot_kwargs,
@@ -276,17 +276,19 @@ def main():
             [
                 "clusterings",
                 "clusterings_format",
-                "clinical_attrs",
-                "image_attrs",
+                "tabular_attrs",
+                "time_series_attrs",
                 "mask_tag",
                 "num_clustering_agg",
-                "clinical_cat_plot_kwargs",
-                "clinical_num_plot_kwargs",
+                "tabular_cat_plot_kwargs",
+                "tabular_num_plot_kwargs",
                 "output_dir",
             ],
         )
     )
-    image_attrs_keys = [(view, image_attr) for view, image_attr in itertools.product(args.views, image_attrs)]
+    time_series_attrs_keys = [
+        (view, time_series_attr) for view, time_series_attr in itertools.product(args.views, time_series_attrs)
+    ]
 
     # Load the dataset
     patients = Patients(**kwargs)
@@ -312,21 +314,23 @@ def main():
         case _:
             raise ValueError(f"Unknown `clusterings_format`: {clusterings_fmt}")
 
-    clinical_attrs_plots = plot_clinical_attrs_variability_figures(
+    tabular_attrs_plots = plot_tabular_attrs_variability_figures(
         patients,
         clusterings,
-        clinical_attrs=clinical_attrs,
+        tabular_attrs=tabular_attrs,
         num_clustering_agg=num_clustering_agg,
         cat_plot_kwargs=cat_plot_kwargs,
         num_plot_kwargs=num_plot_kwargs,
     )
-    image_attrs_plots = plot_img_attrs_variability_figures(patients, clusterings, image_attrs_keys, mask_tag=mask_tag)
+    time_series_attrs_plots = plot_time_series_attrs_variability_figures(
+        patients, clusterings, time_series_attrs_keys, mask_tag=mask_tag
+    )
 
-    # Plot the variability of the clinical and image attributes
+    # Plot the variability of the tabular and time-series attributes
     output_dir.mkdir(parents=True, exist_ok=True)  # Prepare the output folder for the method
-    n_plots = (len(clinical_attrs) if clinical_attrs else len(ClinicalAttribute)) + len(image_attrs_keys)
+    n_plots = (len(tabular_attrs) if tabular_attrs else len(TabularAttribute)) + len(time_series_attrs_keys)
     for title, plot in tqdm(
-        itertools.chain(clinical_attrs_plots, image_attrs_plots),
+        itertools.chain(tabular_attrs_plots, time_series_attrs_plots),
         desc="Plotting the variability of the attributes w.r.t. clusters",
         unit="attr",
         total=n_plots,

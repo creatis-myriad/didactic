@@ -16,12 +16,12 @@ from vital.utils.saving import load_from_checkpoint
 from didactic.tasks.cardiac_sequence_attrs_ae import CardiacSequenceAttributesAutoencoder
 
 # Should not delete this import even if it is not used directly, since it's necessary for unpickling
-# serialized `CardiacFunctionPCA` models
+# serialized `CardiacSequenceAttributesPCA` models
 from didactic.tasks.cardiac_sequence_attrs_pca import CardiacSequenceAttributesPCA  # noqa
 
 
-class ImageAttributesMetrics(Metrics):
-    """Class that measures reconstruction performance of manifold learning models applied to image attributes data."""
+class TimeSeriesAttributesMetrics(Metrics):
+    """Class that measures reconstruction performance of manifold learning models applied to time-series attributes."""
 
     desc = "img_attrs_scores"
     ResultsCollection = Views
@@ -46,7 +46,7 @@ class ImageAttributesMetrics(Metrics):
             self.models[model_tag] = model
 
     def process_result(self, result: View) -> Tuple[str, "ProcessingOutput"]:
-        """Computes reconstruction metrics on image attributes from a sequence.
+        """Computes reconstruction metrics on time-series attributes from a sequence.
 
         Args:
             result: Data structure holding all the relevant information to compute the requested metrics for a single
@@ -57,7 +57,7 @@ class ImageAttributesMetrics(Metrics):
             - Mapping between the metrics and their value for the instant.
         """
         # Extract the attributes' data from the result, and predict the reconstruction using each model
-        img_attrs = result.get_mask_attributes(self.input_tag)
+        time_series_attrs = result.get_mask_attributes(self.input_tag)
         with torch.inference_mode():
             models_predictions = {
                 model_tag: {
@@ -65,7 +65,7 @@ class ImageAttributesMetrics(Metrics):
                     .squeeze(dim=0)
                     .cpu()
                     .numpy()
-                    for attr, attr_data in img_attrs.items()
+                    for attr, attr_data in time_series_attrs.items()
                 }
                 for model_tag, model in self.models.items()
             }
@@ -76,7 +76,7 @@ class ImageAttributesMetrics(Metrics):
             return np.mean(np.abs(array1 - array2))
 
         metrics = {}
-        for attr, attr_data in img_attrs.items():
+        for attr, attr_data in time_series_attrs.items():
             for model1, model2 in itertools.combinations(self.models, 2):
                 metrics[f"{model1}_{model2}_{attr}_mae"] = _mae(
                     models_predictions[model1][attr], models_predictions[model2][attr]
@@ -100,10 +100,10 @@ class ImageAttributesMetrics(Metrics):
 
     @classmethod
     def build_parser(cls) -> ArgumentParser:
-        """Creates parser with support for image attributes reconstruction metrics.
+        """Creates parser with support for time-series attributes reconstruction metrics.
 
         Returns:
-            Parser object with support for image attributes reconstruction metrics.
+            Parser object with support for time-series attributes reconstruction metrics.
         """
         parser = super().build_parser()
         parser.add_argument(
@@ -120,4 +120,4 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
 
     load_dotenv()  # Load .env to configure Comet API key in case some models come from a Comet model registry
-    ImageAttributesMetrics.main()
+    TimeSeriesAttributesMetrics.main()

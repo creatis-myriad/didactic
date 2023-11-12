@@ -5,17 +5,17 @@ def main():
 
     import pandas as pd
     from tqdm.auto import tqdm
-    from vital.data.cardinal.config import ClinicalAttribute
+    from vital.data.cardinal.config import TabularAttribute
     from vital.data.cardinal.utils.itertools import Patients
 
     parser = ArgumentParser()
     parser = Patients.add_args(parser)
     parser.add_argument(
         "--attributes",
-        type=ClinicalAttribute,
+        type=TabularAttribute,
         nargs="+",
-        choices=ClinicalAttribute.categorical_attrs(),
-        default=ClinicalAttribute.categorical_attrs(),
+        choices=TabularAttribute.categorical_attrs(),
+        default=TabularAttribute.categorical_attrs(),
         help="Attributes w.r.t. which to list the patients belonging to each class",
     )
     parser.add_argument(

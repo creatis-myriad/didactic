@@ -8,7 +8,7 @@ defaults:
 trainer:
   max_epochs: 500
 
-excluded_clinical_attrs: ${oc.dict.keys:task.predict_losses}
+exclude_tabular_attrs: ${oc.dict.keys:task.predict_losses}
 
 task:
   predict_losses: ???

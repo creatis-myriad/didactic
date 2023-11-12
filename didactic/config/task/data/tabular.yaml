@@ -1,0 +1,5 @@
+# @package _global_
+
+task:
+  tabular_attrs: ${list.remove:${data.process_patient_kwargs.tabular_attrs},${exclude_tabular_attrs}}
+  time_series_attrs: []

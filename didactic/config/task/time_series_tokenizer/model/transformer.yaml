@@ -16,7 +16,7 @@ _args_:
 
     positional_encoding:
       _target_: didactic.models.layers.PositionalEncoding
-      sequence_len: ${task.img_tokenizer.resample_dim}
+      sequence_len: ${task.time_series_tokenizer.resample_dim}
       d_model: ${task.embed_dim}
 
     transformer_encoder:
@@ -37,6 +37,6 @@ _args_:
         batch_first: True
         norm_first: True
 
-    sequential_pooling:
-      _target_: didactic.models.layers.SequentialPooling
+    sequence_pooling:
+      _target_: didactic.models.layers.SequencePooling
       d_model: ${task.embed_dim}

@@ -3,15 +3,15 @@ from argparse import ArgumentParser
 from typing import Dict, Sequence
 
 import numpy as np
-from vital.data.cardinal.config import ImageAttribute
+from vital.data.cardinal.config import TimeSeriesAttribute
 from vital.data.cardinal.utils.data_struct import View
 from vital.results.processor import ResultsProcessor
 
 logger = logging.getLogger(__name__)
 
 
-class ImageAttributesMixin(ResultsProcessor):
-    """Mixin that groups together various behaviors regarding how to handle images' attribute data.
+class TimeSeriesAttributesMixin(ResultsProcessor):
+    """Mixin that groups together various behaviors regarding how to handle time-series attribute data.
 
     - How to access the attributes;
     """
@@ -39,18 +39,18 @@ class ImageAttributesMixin(ResultsProcessor):
 
     @classmethod
     def build_parser(cls) -> ArgumentParser:
-        """Creates parser for processors that need to access image attributes.
+        """Creates parser for processors that need to access time-series attributes.
 
         Returns:
-            Parser object for processors that need to access image attributes.
+            Parser object for processors that need to access time-series attributes.
         """
         parser = super().build_parser()
         parser.add_argument(
             "--attrs",
             type=str,
             nargs="+",
-            default=list(ImageAttribute),
-            choices=list(ImageAttribute),
+            default=list(TimeSeriesAttribute),
+            choices=list(TimeSeriesAttribute),
             help="Labels identifying attributes of interest",
         )
         return parser

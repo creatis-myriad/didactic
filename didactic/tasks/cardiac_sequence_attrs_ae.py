@@ -10,9 +10,9 @@ from omegaconf import DictConfig
 from strenum import SnakeCaseStrEnum
 from torch import Tensor, nn
 from torch.nn import functional as F
-from vital.data.cardinal.config import CardinalTag, ImageAttribute
+from vital.data.cardinal.config import CardinalTag, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
-from vital.data.cardinal.datapipes import PatientData, filter_image_attributes
+from vital.data.cardinal.datapipes import PatientData, filter_time_series_attributes
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 from vital.utils.norm import minmax_scaling, scale
@@ -23,29 +23,29 @@ logger = logging.getLogger(__name__)
 
 @unique
 class _AttributeNormalization(SnakeCaseStrEnum):
-    """Names of the available strategies for normalizing image attributes values."""
+    """Names of the available strategies for normalizing time-series attributes values."""
 
     data = auto()
     """Normalize the attributes' values w.r.t. statistics computed on the whole training dataset."""
     metrics = auto()
-    """Normalize the metrics computed on the image attributes w.r.t. statistics computed on each mini-batch."""
+    """Normalize the metrics computed on the time-series attributes w.r.t. statistics computed on each mini-batch."""
 
 
 @unique
 class _AttributeStatistic(SnakeCaseStrEnum):
-    """Statistics about the image attributes that are computed on the dataset and stored inside the model."""
+    """Statistics about the time-series attributes that are computed on the dataset and stored inside the model."""
 
     min = auto()
     max = auto()
 
 
 class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
-    """Autoencoder pipeline specialized for cardiac sequences image attributes."""
+    """Autoencoder pipeline specialized for cardiac sequences time-series attributes."""
 
     def __init__(
         self,
         views: Sequence[ViewEnum] = tuple(ViewEnum),
-        attrs: Sequence[ImageAttribute] = tuple(ImageAttribute),
+        attrs: Sequence[TimeSeriesAttribute] = tuple(TimeSeriesAttribute),
         normalization: _AttributeNormalization = _AttributeNormalization.data,
         reconstruction_loss: nn.Module | DictConfig = nn.L1Loss(),
         *args,
@@ -55,10 +55,10 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
 
         Args:
             views: Views to train the model on.
-            attrs: Image attributes to train the model on.
-            normalization: Strategy to use to normalize image attributes values.
-            reconstruction_loss: Criterion to measure the reconstruction error on the image attribute curves, or Hydra
-                config object describing how to instantiate such criterion.
+            attrs: Time-series attributes to train the model on.
+            normalization: Strategy to use to normalize time-series attributes values.
+            reconstruction_loss: Criterion to measure the reconstruction error on the time-series attribute curves, or
+                Hydra config object describing how to instantiate such criterion.
             *args: Positional arguments to pass to the parent's constructor.
             **kwargs: Keyword arguments to pass to the parent's constructor.
         """
@@ -76,7 +76,7 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
         self.reconstruction_loss = reconstruction_loss
         self._reconstruction_loss_name = self.reconstruction_loss.__class__.__name__.lower().replace("loss", "")
 
-        # Register buffers for image attributes (needs to be in `__init__`)
+        # Register buffers for time-series attributes (needs to be in `__init__`)
         attrs_stats_defaults = {
             _AttributeStatistic.min: torch.finfo().max,
             _AttributeStatistic.max: torch.finfo().min,
@@ -88,9 +88,9 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
 
     @property
     def example_input_array(self) -> Tensor:
-        """Redefine example input array based only on the image attributes modality."""
-        img_attrs_shape = self.hparams.data_params.in_shape[CardinalTag.image_attrs]
-        return torch.randn((2, 1, img_attrs_shape[1]))
+        """Redefine example input array based only on the time-series attributes modality."""
+        attrs_shape = self.hparams.data_params.in_shape[CardinalTag.time_series_attrs]
+        return torch.randn((2, 1, attrs_shape[1]))
 
     @property
     def latent_dim(self) -> int:
@@ -117,31 +117,33 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
                 )
         return reconstruction_loss_scale
 
-    def _get_attr_bounds(self, attr: Tuple[ViewEnum, ImageAttribute]) -> Tuple[Tensor, Tensor]:
-        """Access the stored min/max bounds related to an image attribute.
+    def _get_attr_bounds(self, attr: Tuple[ViewEnum, TimeSeriesAttribute]) -> Tuple[Tensor, Tensor]:
+        """Access the stored min/max bounds related to a time-series attribute.
 
         Args:
             attr: Key identifying the attribute for which to look up the bounds.
 
         Returns:
-            Min/max bounds for the requested image attribute.
+            Min/max bounds for the requested time-series attribute.
         """
         return self._get_attr_stat(attr, _AttributeStatistic.min), self._get_attr_stat(attr, _AttributeStatistic.max)
 
-    def _get_attr_stat(self, attr: Tuple[ViewEnum, ImageAttribute], stat: _AttributeStatistic) -> Tensor:
-        """Access a statistic related to an image attribute, saved as a torch buffer inside the model.
+    def _get_attr_stat(self, attr: Tuple[ViewEnum, TimeSeriesAttribute], stat: _AttributeStatistic) -> Tensor:
+        """Access a statistic related to a time-series attribute, saved as a torch buffer inside the model.
 
         Args:
             attr: Key identifying the attribute for which to look up the statistic.
             stat: Statistic to look up.
 
         Returns:
-            Statistic for the requested image attribute.
+            Statistic for the requested time-series attribute.
         """
         return getattr(self, "_".join((*attr, stat)))
 
-    def _set_attr_stat(self, attr: Tuple[ViewEnum, ImageAttribute], stat: _AttributeStatistic, val: Tensor) -> None:
-        """Sets the value of a statistic related to an image attribute, saved as a torch buffer inside the model.
+    def _set_attr_stat(
+        self, attr: Tuple[ViewEnum, TimeSeriesAttribute], stat: _AttributeStatistic, val: Tensor
+    ) -> None:
+        """Sets the value of a statistic related to a time-series attribute, saved as a torch buffer inside the model.
 
         Args:
             attr: Key identifying the attribute for which to set the statistic.
@@ -152,12 +154,12 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
 
     def configure_model(self) -> nn.Module:
         """Configure the network architecture used by the system."""
-        attrs_shape = self.hparams.data_params.in_shape[CardinalTag.image_attrs]
+        attrs_shape = self.hparams.data_params.in_shape[CardinalTag.time_series_attrs]
         model = hydra.utils.instantiate(self.hparams.model, input_shape=(1, attrs_shape[-1]))
         return model
 
     def on_fit_start(self) -> None:
-        """Computes global statistics for the image attributes on the training subset.
+        """Computes global statistics for the time-series attributes on the training subset.
 
         These stats will be used during training and inference to normalize attributes values or metrics
         """
@@ -169,7 +171,7 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
         for batch in train_dl:
             for (stat, update_fn), (attr, attr_data) in itertools.product(
                 attrs_stats_update_fn.items(),
-                filter_image_attributes(batch, views=self.hparams.views, attributes=self.hparams.attrs).items(),
+                filter_time_series_attributes(batch, views=self.hparams.views, attrs=self.hparams.attrs).items(),
             ):
                 self._set_attr_stat(attr, stat, update_fn(self._get_attr_stat(attr, stat), attr_data))
 
@@ -222,7 +224,7 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
         self,
         x: Tensor,
         task: Literal["encode", "decode", "reconstruct"] = "reconstruct",
-        attr: Tuple[ViewEnum, ImageAttribute] = None,
+        attr: Tuple[ViewEnum, TimeSeriesAttribute] = None,
         out_shape: Tuple[int, ...] = None,
     ) -> Tensor:
         """Performs test-time inference on the input.
@@ -280,12 +282,12 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
         return x
 
     def _shared_step(self, batch: PatientData, batch_idx: int) -> Dict[str, Tensor]:  # noqa: D102
-        attrs = filter_image_attributes(batch, views=self.hparams.views, attributes=self.hparams.attrs)
+        attrs = filter_time_series_attributes(batch, views=self.hparams.views, attrs=self.hparams.attrs)
 
         if self.hparams.normalization == _AttributeNormalization.data:
             attrs = self._normalize_attrs(attrs)
 
-        # Forward on image attributes
+        # Forward on time-series attributes
         attrs_x_hat, attrs_z = {}, {}
         for attr_key, attr_data in attrs.items():
             attrs_z[attr_key] = self.encoder(attr_data.unsqueeze(1))
@@ -312,8 +314,8 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
         return metrics
 
     def _normalize_attrs(
-        self, attrs: Dict[Tuple[ViewEnum, ImageAttribute], Tensor]
-    ) -> Dict[Tuple[ViewEnum, ImageAttribute], Tensor]:
+        self, attrs: Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor]
+    ) -> Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor]:
         """Normalizes attributes with different range of values.
 
         Args:
@@ -328,8 +330,8 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
         }
 
     def _normalize_attrs_reconstruction_metrics(
-        self, attrs_metrics: Dict[Tuple[ViewEnum, ImageAttribute], Tensor]
-    ) -> Dict[Tuple[ViewEnum, ImageAttribute], Tensor]:
+        self, attrs_metrics: Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor]
+    ) -> Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor]:
         """Normalizes reconstruction metrics computed on attributes with different range of values.
 
         Args:
@@ -353,9 +355,9 @@ class CardiacSequenceAttributesAutoencoder(SharedStepsTask):
     @torch.inference_mode()
     def predict_step(  # noqa: D102
         self, batch: PatientData, batch_idx: int, dataloader_idx: int = 0
-    ) -> Dict[Tuple[ViewEnum, ImageAttribute], Tuple[Tensor, Tensor]]:
-        # Reconstruct the image attributes
-        attrs = filter_image_attributes(batch, views=self.hparams.views, attributes=self.hparams.attrs)
+    ) -> Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tuple[Tensor, Tensor]]:
+        # Reconstruct the time-series attributes
+        attrs = filter_time_series_attributes(batch, views=self.hparams.views, attrs=self.hparams.attrs)
         prediction = {}
         for attr_key, attr_data in attrs.items():
             if not (is_batch := attr_data.ndim == 2):
@@ -383,12 +385,12 @@ class CardiacSequenceAttributesAutoencoderTokenizer(nn.Module):
         """Initializes class instance.
 
         Args:
-            cardiac_sequence_attrs_model: Pretrained image attributes autoencoder model used to compress the attributes
-                into tokens. Mutually exclusive parameter with `embed_dim`.
+            cardiac_sequence_attrs_model: Pretrained time-series attributes autoencoder model used to compress the
+                attributes into tokens. Mutually exclusive parameter with `embed_dim`.
         """
         super().__init__()
 
-        # If the image attributes encoder is a checkpoint rather than an instantiated network, load the model from
+        # If the time-series attributes encoder is a checkpoint rather than an instantiated network, load the model from
         # the checkpoint
         if isinstance(cardiac_sequence_attrs_model, (str, Path)):
             cardiac_sequence_attrs_model = load_from_checkpoint(cardiac_sequence_attrs_model)
@@ -396,11 +398,11 @@ class CardiacSequenceAttributesAutoencoderTokenizer(nn.Module):
         # Also, the backend model needs to be saved as a class member even if it's not necessary so that the
         # tokenizer as a whole can behave as expected of a module
         # (e.g. moving it across devices is applied recursively to the backend model, etc.)
-        self.img_attrs_ae = cardiac_sequence_attrs_model.eval().requires_grad_(False)
+        self.autoencoder = cardiac_sequence_attrs_model.eval().requires_grad_(False)
 
     @torch.inference_mode()
-    def forward(self, attrs: Dict[Tuple[ViewEnum, ImageAttribute], Tensor]) -> Tensor:
-        """Encodes image attributes using the autoencoder.
+    def forward(self, attrs: Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor]) -> Tensor:
+        """Encodes time-series attributes using the autoencoder.
 
         Args:
             attrs: (K: S, V: (N, ?)): Attributes to tokenize, where the dimensionality of each attribute can vary.
@@ -408,4 +410,4 @@ class CardiacSequenceAttributesAutoencoderTokenizer(nn.Module):
         Returns:
             (N, S, E), Tokenized version of the attributes.
         """
-        return torch.stack([self.img_attrs_ae(x, task="encode", attr=attr) for attr, x in attrs.items()], dim=1)
+        return torch.stack([self.autoencoder(x, task="encode", attr=attr) for attr, x in attrs.items()], dim=1)

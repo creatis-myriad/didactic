@@ -14,18 +14,18 @@ from torch import Tensor, nn
 from torch.nn import Parameter, ParameterDict, init
 from torchmetrics.functional import accuracy, mean_absolute_error
 from vital.data.augmentation.base import mask_tokens, random_masking
-from vital.data.cardinal.config import CardinalTag, ClinicalAttribute, ImageAttribute
+from vital.data.cardinal.config import CardinalTag, TabularAttribute, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
-from vital.data.cardinal.datapipes import MISSING_CAT_ATTR, PatientData, filter_image_attributes
-from vital.data.cardinal.utils.attributes import CLINICAL_CAT_ATTR_LABELS
+from vital.data.cardinal.datapipes import MISSING_CAT_ATTR, PatientData, filter_time_series_attributes
+from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
-from didactic.models.layers import PositionalEncoding, SequentialPooling
+from didactic.models.layers import PositionalEncoding, SequencePooling
 from didactic.models.time_series import TimeSeriesEmbedding
 
 logger = logging.getLogger(__name__)
-CardiacAttribute = ClinicalAttribute | Tuple[ViewEnum, ImageAttribute]
+CardiacAttribute = TabularAttribute | Tuple[ViewEnum, TimeSeriesAttribute]
 
 
 class CardiacMultimodalRepresentationTask(SharedStepsTask):
@@ -34,17 +34,17 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
     def __init__(
         self,
         embed_dim: int,
-        clinical_attrs: Sequence[ClinicalAttribute | str],
-        img_attrs: Sequence[ImageAttribute],
+        tabular_attrs: Sequence[TabularAttribute | str],
+        time_series_attrs: Sequence[TimeSeriesAttribute],
         views: Sequence[ViewEnum] = tuple(ViewEnum),
-        predict_losses: Dict[ClinicalAttribute | str, Callable[[Tensor, Tensor], Tensor]] | DictConfig = None,
+        predict_losses: Dict[TabularAttribute | str, Callable[[Tensor, Tensor], Tensor]] | DictConfig = None,
         ordinal_mode: bool = True,
         contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         contrastive_loss_weight: float = 0,
-        clinical_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
-        img_tokenizer: Optional[TimeSeriesEmbedding | DictConfig] = None,
+        tabular_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
+        time_series_tokenizer: Optional[TimeSeriesEmbedding | DictConfig] = None,
         cls_token: bool = True,
-        sequential_pooling: bool = False,
+        sequence_pooling: bool = False,
         mtr_p: float | Tuple[float, float] = 0,
         mt_by_attr: bool = False,
         *args,
@@ -54,6 +54,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         Args:
             embed_dim: Size of the tokens/embedding for all the modalities.
+            tabular_attrs: Tabular attributes to provide to the model.
+            time_series_attrs: Time-series attributes to provide to the model.
+            views: Views from which to include time-series attributes.
             predict_losses: Supervised criteria to measure the error between the predicted attributes and their real
                 value.
             ordinal_mode: Whether to consider applicable targets as ordinal variables, which means:
@@ -63,14 +66,12 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 of feature vectors, in a contrastive learning step that follows the SCARF pretraining.
                 (see ref: https://arxiv.org/abs/2106.15147)
             contrastive_loss_weight: Factor by which to weight the `contrastive_loss` in the overall loss.
-            clinical_attrs: Clinical attributes to provide to the model.
-            img_attrs: Image attributes to provide to the model.
-            views: Views from which to include image attributes.
-            clinical_tokenizer: Tokenizer that can process clinical, i.e. patient records, data.
-            img_tokenizer: Tokenizer that can process imaging data.
-            cls_token: Whether to add a CLS token to use as the encoder's output token.
-            sequential_pooling: Whether to perform sequential pooling on the encoder's output tokens. Otherwise, the
-                full sequence of tokens is concatenated before being fed to the prediction head.
+            tabular_tokenizer: Tokenizer that can process tabular, i.e. patient records, data.
+            time_series_tokenizer: Tokenizer that can process time-series data.
+            cls_token: Whether to add a CLS token to use as the encoder's output token. Mutually exclusive parameter
+                with `sequence_pooling`.
+            sequence_pooling: Whether to perform sequence pooling on the encoder's output tokens. Mutually exclusive
+                parameter with `cls_token`.
             mtr_p: Probability to replace tokens by the learned MASK token, following the Mask Token Replacement (MTR)
                 data augmentation method.
                 If a float, the value will be used as masking rate during training (disabled during inference).
@@ -82,9 +83,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         """
         # Ensure string tags are converted to their appropriate enum types
         # And to it before call to the parent's `init` so that the converted values are saved in `hparams`
-        clinical_attrs = tuple(ClinicalAttribute[e] for e in clinical_attrs)
+        tabular_attrs = tuple(TabularAttribute[e] for e in tabular_attrs)
         views = tuple(ViewEnum[e] for e in views)
-        img_attrs = tuple(ImageAttribute[e] for e in img_attrs)
+        time_series_attrs = tuple(TimeSeriesAttribute[e] for e in time_series_attrs)
 
         # If dropout/masking are not single numbers, make sure they are tuples (and not another container type)
         if not isinstance(mtr_p, (int, float)):
@@ -98,72 +99,77 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 "model in fully-supervised mode, with the self-supervised loss as an auxiliary term."
             )
 
-        if cls_token == sequential_pooling:
+        if cls_token == sequence_pooling:
             raise ValueError(
-                "You should specify either `cls_token` or `sequential_pooling` as the method to reduce the "
+                "You should specify either `cls_token` or `sequence_pooling` as the method to reduce the "
                 "dimensionality of the encoder's output from a sequence of tokens to only one token."
             )
 
-        if not clinical_tokenizer and clinical_attrs:
+        if not tabular_tokenizer and tabular_attrs:
             raise ValueError(
-                f"You have requested the following attributes derived from clinical data: "
-                f"{[str(attr) for attr in clinical_attrs]}, but have not configured a tokenizer for clinical-based "
-                f"attributes. Either provide this tokenizer (through the `clinical_tokenizer` parameter) or remove any "
-                f"clinical-based attributes (by setting the `clinical_attrs` to be an empty list)."
+                f"You have requested the following tabular attributes: "
+                f"{[str(attr) for attr in tabular_attrs]}, but have not configured a tokenizer for tabular attributes. "
+                f"Either provide this tokenizer (through the `tabular_tokenizer` parameter) or remove any tabular "
+                f"attributes (by setting the `tabular_attrs` to be an empty list)."
             )
-        if img_attrs:
-            if not img_tokenizer:
+        if time_series_attrs:
+            if not time_series_tokenizer:
                 raise ValueError(
-                    f"You have requested the following attributes derived from imaging data: "
-                    f"{[str(attr) for attr in img_attrs]}, but have not configured a tokenizer for image-based "
-                    f"attributes. Either provide this tokenizer (through the `img_tokenizer` parameter) or remove any "
-                    f"image-based attributes (by setting the `img_attrs` to be an empty list)."
+                    f"You have requested the following time-series attributes: "
+                    f"{[str(attr) for attr in time_series_attrs]}, but have not configured a tokenizer for time-series "
+                    f"attributes. Either provide this tokenizer (through the `time_series_tokenizer` parameter) or "
+                    f"remove any time-series attributes (by setting the `time_series_attrs` to be an empty list)."
                 )
             if (
-                img_tokenizer.model if isinstance(img_tokenizer, TimeSeriesEmbedding) else img_tokenizer.get("model")
+                time_series_tokenizer.model
+                if isinstance(time_series_tokenizer, TimeSeriesEmbedding)
+                else time_series_tokenizer.get("model")
             ) is None:
                 logger.warning(
-                    f"You have requested the following attributes derived from imaging data: "
-                    f"{[str(attr) for attr in img_attrs]}, but have not configured a model for the tokenizer for "
-                    f"image-based attributes. The tokenizer's model is optional, but highly recommended, so this is "
-                    f"likely an oversight. You can provide this model through the `img_tokenizer.model` parameter."
+                    f"You have requested the following time-series attributes: "
+                    f"{[str(attr) for attr in time_series_attrs]}, but have not configured a model for the tokenizer "
+                    f"for time-series attributes. The tokenizer's model is optional, but highly recommended, so this "
+                    f"is likely an oversight. You can provide this model through the `time_series_tokenizer.model` "
+                    f"parameter."
                 )
-        if not (clinical_attrs or img_attrs):
+        if not (tabular_attrs or time_series_attrs):
             raise ValueError(
-                "You configured neither clinical attributes nor image attributes as input variables to the model, but "
-                "the model requires at least one input. Set non-empty values for either or both `clinical_attrs` and "
-                "`img_attrs`."
+                "You configured neither tabular attributes nor time-series attributes as input variables to the model, "
+                "but the model requires at least one input. Set non-empty values for either or both `tabular_attrs` "
+                "and `time_series_attrs`."
             )
 
         super().__init__(*args, **kwargs)
 
-        # TOFIX: Hack to log image tokenizer model's hparams when it's a config for a `torch.nn.Sequential` object
+        # TOFIX: Hack to log time-series tokenizer model's hparams when it's a config for a `torch.nn.Sequential` object
         # In that case, we have to use a `ListConfig` for the reserved `_args_` key. However, the automatic
         # serialization of `_args_` fails (w/ a '`DictConfig' not JSON serializable' error). Therefore, we fix it by
         # manually unpacking and logging the first and only element in the `_args_` `ListConfig`
-        if isinstance(img_tokenizer, DictConfig):
-            if img_tokenizer.get("model", {}).get("_target_") == "torch.nn.Sequential":
-                self.save_hyperparameters({"img_tokenizer/model/_args_/0": img_tokenizer.model._args_[0]})
+        if isinstance(time_series_tokenizer, DictConfig):
+            if time_series_tokenizer.get("model", {}).get("_target_") == "torch.nn.Sequential":
+                self.save_hyperparameters(
+                    {"time_series_tokenizer/model/_args_/0": time_series_tokenizer.model._args_[0]}
+                )
 
         # Add shortcut to lr to work with Lightning's learning rate finder
         self.hparams.lr = None
 
         # Add shortcut to token labels to avoid downstream applications having to determine them from hyperparameters
-        self.token_tags = clinical_attrs + tuple(
-            "/".join([view, attr]) for view, attr in itertools.product(views, img_attrs)
+        self.token_tags = tabular_attrs + tuple(
+            "/".join([view, attr]) for view, attr in itertools.product(views, time_series_attrs)
         )
         if cls_token:
-            self.token_tags = self.token_tags + ("LAT",)
+            self.token_tags = self.token_tags + ("CLS",)
 
-        # Categorise the clinical attributes (tabular data) in terms of their type (numerical vs categorical)
-        self.clinical_num_attrs = [
-            attr for attr in self.hparams.clinical_attrs if attr in ClinicalAttribute.numerical_attrs()
+        # Categorise the tabular attributes in terms of their type (numerical vs categorical)
+        self.tabular_num_attrs = [
+            attr for attr in self.hparams.tabular_attrs if attr in TabularAttribute.numerical_attrs()
         ]
-        self.clinical_cat_attrs = [
-            attr for attr in self.hparams.clinical_attrs if attr in ClinicalAttribute.categorical_attrs()
+        self.tabular_cat_attrs = [
+            attr for attr in self.hparams.tabular_attrs if attr in TabularAttribute.categorical_attrs()
         ]
-        self.clinical_cat_attrs_cardinalities = [
-            len(CLINICAL_CAT_ATTR_LABELS[cat_attr]) for cat_attr in self.clinical_cat_attrs
+        self.tabular_cat_attrs_cardinalities = [
+            len(TABULAR_CAT_ATTR_LABELS[cat_attr]) for cat_attr in self.tabular_cat_attrs
         ]
 
         # Extract train/test masking probabilities from their configs
@@ -180,23 +186,23 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self.predict_losses = {}
         if predict_losses:
             self.predict_losses = {
-                ClinicalAttribute[attr]: hydra.utils.instantiate(attr_loss)
+                TabularAttribute[attr]: hydra.utils.instantiate(attr_loss)
                 if isinstance(attr_loss, DictConfig)
                 else attr_loss
                 for attr, attr_loss in predict_losses.items()
             }
-        self.hparams.target_clinical_attrs = tuple(
+        self.hparams.target_tabular_attrs = tuple(
             self.predict_losses
         )  # Hyperparameter to easily access target attributes
         for attr in self.predict_losses:
-            if attr in ClinicalAttribute.numerical_attrs():
+            if attr in TabularAttribute.numerical_attrs():
                 self.metrics[attr] = {"mae": mean_absolute_error}
-            elif attr in ClinicalAttribute.binary_attrs():
+            elif attr in TabularAttribute.binary_attrs():
                 self.metrics[attr] = {"acc": functools.partial(accuracy, task="binary")}
-            else:  # attr in ClinicalAttribute.categorical_attrs()
+            else:  # attr in TabularAttribute.categorical_attrs()
                 self.metrics[attr] = {
                     "acc": functools.partial(
-                        accuracy, task="multiclass", num_classes=len(CLINICAL_CAT_ATTR_LABELS[attr])
+                        accuracy, task="multiclass", num_classes=len(TABULAR_CAT_ATTR_LABELS[attr])
                     )
                 }
 
@@ -211,8 +217,8 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         # Compute shapes relevant for defining the models' architectures
         self.sequence_length = (
-            len(self.hparams.clinical_attrs)
-            + (len(self.hparams.img_attrs) * len(self.hparams.views))
+            len(self.hparams.tabular_attrs)
+            + (len(self.hparams.time_series_attrs) * len(self.hparams.views))
             + self.hparams.cls_token
         )
 
@@ -232,25 +238,25 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 f"of the number of attention heads for your configuration above this warning."
             )
 
-        if clinical_attrs:
-            if isinstance(clinical_tokenizer, DictConfig):
-                clinical_tokenizer = hydra.utils.instantiate(
-                    clinical_tokenizer,
-                    n_num_features=len(self.clinical_num_attrs),
-                    cat_cardinalities=self.clinical_cat_attrs_cardinalities,
+        if tabular_attrs:
+            if isinstance(tabular_tokenizer, DictConfig):
+                tabular_tokenizer = hydra.utils.instantiate(
+                    tabular_tokenizer,
+                    n_num_features=len(self.tabular_num_attrs),
+                    cat_cardinalities=self.tabular_cat_attrs_cardinalities,
                 )
         else:
             # Set tokenizer to `None` if it's not going to be used
-            clinical_tokenizer = None
-        self.clinical_tokenizer = clinical_tokenizer
+            tabular_tokenizer = None
+        self.tabular_tokenizer = tabular_tokenizer
 
-        if img_attrs:
-            if isinstance(img_tokenizer, DictConfig):
-                img_tokenizer = hydra.utils.instantiate(img_tokenizer)
+        if time_series_attrs:
+            if isinstance(time_series_tokenizer, DictConfig):
+                time_series_tokenizer = hydra.utils.instantiate(time_series_tokenizer)
         else:
             # Set tokenizer to `None` if it's not going to be used
-            img_tokenizer = None
-        self.img_tokenizer = img_tokenizer
+            time_series_tokenizer = None
+        self.time_series_tokenizer = time_series_tokenizer
 
         # Initialize modules/parameters dependent on the encoder's configuration
 
@@ -260,8 +266,8 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         # Initialize parameters of method for reducing the dimensionality of the encoder's output to only one token
         if self.hparams.cls_token:
             self.cls_token = rtdl.CLSToken(self.hparams.embed_dim, "uniform")
-        if self.hparams.sequential_pooling:
-            self.sequential_pooling = SequentialPooling(self.hparams.embed_dim)
+        if self.hparams.sequence_pooling:
+            self.sequence_pooling = SequencePooling(self.hparams.embed_dim)
 
         if self.hparams.mtr_p:
 
@@ -287,18 +293,18 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
     @property
     def example_input_array(
         self,
-    ) -> Tuple[Dict[ClinicalAttribute, Tensor], Dict[Tuple[ViewEnum, ImageAttribute], Tensor]]:
+    ) -> Tuple[Dict[TabularAttribute, Tensor], Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor]]:
         """Redefine example input array based on the cardiac attributes provided to the model."""
         # 2 is the size of the batch in the example
-        clinical_attrs = {attr: torch.randn(2) for attr in self.clinical_num_attrs}
+        tab_attrs = {attr: torch.randn(2) for attr in self.tabular_num_attrs}
         # Only generate 0/1 labels, to avoid generating labels bigger than the number of classes, which would lead to
         # an index out of range error when looking up the embedding of the class in the categorical feature tokenizer
-        clinical_attrs.update({attr: torch.randint(2, (2,)) for attr in self.clinical_cat_attrs})
-        img_attrs = {
-            (view, attr): torch.randn(2, self.hparams.data_params.in_shape[CardinalTag.image_attrs][1])
-            for view, attr in itertools.product(self.hparams.views, self.hparams.img_attrs)
+        tab_attrs.update({attr: torch.randint(2, (2,)) for attr in self.tabular_cat_attrs})
+        time_series_attrs = {
+            (view, attr): torch.randn(2, self.hparams.data_params.in_shape[CardinalTag.time_series_attrs][1])
+            for view, attr in itertools.product(self.hparams.views, self.hparams.time_series_attrs)
         }
-        return clinical_attrs, img_attrs
+        return tab_attrs, time_series_attrs
 
     def configure_model(
         self,
@@ -312,50 +318,52 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if self.contrastive_loss:
             contrastive_head = hydra.utils.instantiate(self.hparams.model.contrastive_head)
 
-        # Build the prediction heads (one by clinical attribute to predict) following the architecture proposed in
+        # Build the prediction heads (one by tabular attribute to predict) following the architecture proposed in
         # https://arxiv.org/pdf/2106.11959
         prediction_heads = None
         if self.predict_losses:
             prediction_heads = nn.ModuleDict()
-            for target_clinical_attr in self.predict_losses:
+            for target_tab_attr in self.predict_losses:
                 if (
-                    target_clinical_attr in ClinicalAttribute.categorical_attrs()
-                    and target_clinical_attr not in ClinicalAttribute.binary_attrs()
+                    target_tab_attr in TabularAttribute.categorical_attrs()
+                    and target_tab_attr not in TabularAttribute.binary_attrs()
                 ):
                     # Multi-class classification target
-                    output_size = len(CLINICAL_CAT_ATTR_LABELS[target_clinical_attr])
+                    output_size = len(TABULAR_CAT_ATTR_LABELS[target_tab_attr])
                 else:
                     # Binary classification or regression target
                     output_size = 1
 
-                if self.hparams.ordinal_mode and target_clinical_attr in ClinicalAttribute.ordinal_attrs():
+                if self.hparams.ordinal_mode and target_tab_attr in TabularAttribute.ordinal_attrs():
                     # For ordinal targets, use a separate prediction head config
-                    prediction_heads[target_clinical_attr] = hydra.utils.instantiate(
+                    prediction_heads[target_tab_attr] = hydra.utils.instantiate(
                         self.hparams.model.ordinal_head, num_logits=output_size
                     )
                 else:
-                    prediction_heads[target_clinical_attr] = hydra.utils.instantiate(
+                    prediction_heads[target_tab_attr] = hydra.utils.instantiate(
                         self.hparams.model.prediction_head, out_features=output_size
                     )
 
         return encoder, contrastive_head, prediction_heads
 
     def configure_optimizers(self) -> Dict[Literal["optimizer", "lr_scheduler"], Any]:
-        """Configure optimizer to ignore parameters that should remain frozen (e.g. image tokenizer)."""
+        """Configure optimizer to ignore parameters that should remain frozen (e.g. tokenizers)."""
         return super().configure_optimizers(params=filter(lambda p: p.requires_grad, self.parameters()))
 
     @auto_move_data
     def tokenize(
-        self, clinical_attrs: Dict[ClinicalAttribute, Tensor], img_attrs: Dict[Tuple[ViewEnum, ImageAttribute], Tensor]
+        self,
+        tabular_attrs: Dict[TabularAttribute, Tensor],
+        time_series_attrs: Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor],
     ) -> Tuple[Tensor, Tensor]:
-        """Tokenizes the input clinical and image attributes, providing a mask of non-missing attributes.
+        """Tokenizes the input tabular and time-series attributes, providing a mask of non-missing attributes.
 
         Args:
-            clinical_attrs: (K: S, V: N), Sequence of batches of clinical attributes. To indicate an item is missing an
+            tabular_attrs: (K: S, V: N), Sequence of batches of tabular attributes. To indicate an item is missing an
                 attribute, the flags `MISSING_NUM_ATTR`/`MISSING_CAT_ATTR` can be used for numerical and categorical
                 attributes, respectively.
-            img_attrs: (K: S, V: (N, ?)), Sequence of batches of image attributes, where the dimensionality of each
-                attribute can vary.
+            time_series_attrs: (K: S, V: (N, ?)), Sequence of batches of time-series attributes, where the
+                dimensionality of each attribute can vary.
 
         Returns:
             Batch of i) (N, S, E) tokens for each attribute, and ii) (N, S) mask of non-missing attributes.
@@ -364,17 +372,17 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         tokens, notna_mask = [], []
 
         # Tokenize the attributes
-        if clinical_attrs:
-            clinical_num_attrs, clinical_cat_attrs = None, None
-            if self.clinical_num_attrs:
-                # Group the numerical attributes from the `clinical_attrs` input in a single tensor
-                clinical_num_attrs = torch.hstack(
-                    [clinical_attrs[attr].unsqueeze(1) for attr in self.clinical_num_attrs]
+        if tabular_attrs:
+            num_attrs, cat_attrs = None, None
+            if self.tabular_num_attrs:
+                # Group the numerical attributes from the `tabular_attrs` input in a single tensor
+                num_attrs = torch.hstack(
+                    [tabular_attrs[attr].unsqueeze(1) for attr in self.tabular_num_attrs]
                 )  # (N, S_num)
-            if self.clinical_cat_attrs:
-                # Group the categorical attributes from the `clinical_attrs` input in a single tensor
-                clinical_cat_attrs = torch.hstack(
-                    [clinical_attrs[attr].unsqueeze(1) for attr in self.clinical_cat_attrs]
+            if self.tabular_cat_attrs:
+                # Group the categorical attributes from the `tabular_attrs` input in a single tensor
+                cat_attrs = torch.hstack(
+                    [tabular_attrs[attr].unsqueeze(1) for attr in self.tabular_cat_attrs]
                 )  # (N, S_cat)
             # Use "sanitized" version of the inputs, where invalid values are replaced by null/default values, for the
             # tokenization process. This is done to avoid propagating NaNs to available/valid values.
@@ -383,30 +391,32 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             # instead of their current null/default values.
             # 1) Convert missing numerical attributes (NaNs) to numbers to avoid propagating NaNs
             # 2) Clip categorical labels to convert indicators of missing data (-1) into valid indices (0)
-            clinical_attrs_tokens = self.clinical_tokenizer(
-                x_num=torch.nan_to_num(clinical_num_attrs) if clinical_num_attrs is not None else None,
-                x_cat=clinical_cat_attrs.clip(0) if clinical_cat_attrs is not None else None,
-            )  # (N, S_clinical, E)
-            tokens.append(clinical_attrs_tokens)
+            tab_attrs_tokens = self.tabular_tokenizer(
+                x_num=torch.nan_to_num(num_attrs) if num_attrs is not None else None,
+                x_cat=cat_attrs.clip(0) if cat_attrs is not None else None,
+            )  # (N, S_tab, E)
+            tokens.append(tab_attrs_tokens)
 
-            # Identify missing data in clinical attributes
-            if self.clinical_num_attrs:
-                notna_mask.append(~(clinical_num_attrs.isnan()))
-            if self.clinical_cat_attrs:
-                notna_mask.append(clinical_cat_attrs != MISSING_CAT_ATTR)
+            # Identify missing data in tabular attributes
+            if self.tabular_num_attrs:
+                notna_mask.append(~(num_attrs.isnan()))
+            if self.tabular_cat_attrs:
+                notna_mask.append(cat_attrs != MISSING_CAT_ATTR)
 
-        if img_attrs:
-            img_attrs_tokens = self.img_tokenizer(img_attrs)  # S * (N, ?) -> (N, S_img, E)
-            tokens.append(img_attrs_tokens)
+        if time_series_attrs:
+            time_series_attrs_tokens = self.time_series_tokenizer(time_series_attrs)  # S * (N, ?) -> (N, S_ts, E)
+            tokens.append(time_series_attrs_tokens)
 
-            # Indicate that, when image tokens are requested, they are always available
-            image_notna_mask = torch.full(img_attrs_tokens.shape[:2], True, device=img_attrs_tokens.device)
-            notna_mask.append(image_notna_mask)
+            # Indicate that, when time-series tokens are requested, they are always available
+            time_series_notna_mask = torch.full(
+                time_series_attrs_tokens.shape[:2], True, device=time_series_attrs_tokens.device
+            )
+            notna_mask.append(time_series_notna_mask)
 
         # Cast to float to make sure tokens are not represented using double
-        tokens = torch.cat(tokens, dim=1).float()  # (N, S_clinical + S_img, E)
+        tokens = torch.cat(tokens, dim=1).float()  # (N, S_tab + S_ts, E)
         # Cast to bool to make sure attention mask is represented by bool
-        notna_mask = torch.cat(notna_mask, dim=1).bool()  # (N, S_clinical + S_img)
+        notna_mask = torch.cat(notna_mask, dim=1).bool()  # (N, S_tab + S_ts)
 
         return tokens, notna_mask
 
@@ -447,15 +457,15 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         # Forward pass through the transformer encoder
         out_tokens = self.encoder(self.positional_encoding(tokens))
 
-        if self.hparams.sequential_pooling:
-            # Perform sequential pooling of the transformers' output tokens
-            out_features = self.sequential_pooling(out_tokens)  # (N, S, E) -> (N, E)
+        if self.hparams.sequence_pooling:
+            # Perform sequence pooling of the transformers' output tokens
+            out_features = self.sequence_pooling(out_tokens)  # (N, S, E) -> (N, E)
         elif self.hparams.cls_token:
             # Only keep the CLS token (i.e. the last token) from the tokens outputted by the encoder
             out_features = out_tokens[:, -1, :]  # (N, S, E) -> (N, E)
         else:
             raise AssertionError(
-                "Either `cls_token` or `sequential_pooling` should have been enabled as the method to reduce the "
+                "Either `cls_token` or `sequence_pooling` should have been enabled as the method to reduce the "
                 "dimensionality of the encoder's output from a sequence of tokens to only one token."
             )
 
@@ -464,18 +474,18 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
     @auto_move_data
     def forward(
         self,
-        clinical_attrs: Dict[ClinicalAttribute, Tensor],
-        img_attrs: Dict[Tuple[ViewEnum, ImageAttribute], Tensor],
+        tabular_attrs: Dict[TabularAttribute, Tensor],
+        time_series_attrs: Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor],
         task: Literal["encode", "predict", "unimodal_param", "unimodal_tau"] = "encode",
-    ) -> Tensor | Dict[ClinicalAttribute, Tensor]:
+    ) -> Tensor | Dict[TabularAttribute, Tensor]:
         """Performs a forward pass through i) the tokenizer, ii) the transformer encoder and iii) the prediction head.
 
         Args:
-            clinical_attrs: (K: S, V: N) Sequence of batches of clinical attributes. To indicate an item is missing an
+            tabular_attrs: (K: S, V: N) Sequence of batches of tabular attributes. To indicate an item is missing an
                 attribute, the flags `MISSING_NUM_ATTR`/`MISSING_CAT_ATTR` can be used for numerical and categorical
                 attributes, respectively.
-            img_attrs: (K: S, V: (N, ?)), Sequence of batches of image attributes, where the dimensionality of each
-                attribute can vary.
+            time_series_attrs: (K: S, V: (N, ?)), Sequence of batches of time-series attributes, where the
+                dimensionality of each attribute can vary.
             task: Flag indicating which type of inference task to perform.
 
         Returns:
@@ -500,7 +510,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 "the requested inference task."
             )
 
-        in_tokens, avail_mask = self.tokenize(clinical_attrs, img_attrs)  # (N, S, E), (N, S)
+        in_tokens, avail_mask = self.tokenize(tabular_attrs, time_series_attrs)  # (N, S, E), (N, S)
         out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E)
 
         # Early return if requested task requires no prediction heads
@@ -515,7 +525,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             case "predict":
                 if self.hparams.ordinal_mode:
                     predictions = {
-                        attr: pred[0] if attr in ClinicalAttribute.ordinal_attrs() else pred
+                        attr: pred[0] if attr in TabularAttribute.ordinal_attrs() else pred
                         for attr, pred in predictions.items()
                     }
             case "unimodal_param":
@@ -530,11 +540,13 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         return predictions
 
     def _shared_step(self, batch: PatientData, batch_idx: int) -> Dict[str, Tensor]:
-        # Extract clinical and image attributes from the batch
-        clinical_attrs = {attr: attr_data for attr, attr_data in batch.items() if attr in self.hparams.clinical_attrs}
-        img_attrs = filter_image_attributes(batch, views=self.hparams.views, attributes=self.hparams.img_attrs)
+        # Extract tabular and time-series attributes from the batch
+        tabular_attrs = {attr: attr_data for attr, attr_data in batch.items() if attr in self.hparams.tabular_attrs}
+        time_series_attrs = filter_time_series_attributes(
+            batch, views=self.hparams.views, attrs=self.hparams.time_series_attrs
+        )
 
-        in_tokens, avail_mask = self.tokenize(clinical_attrs, img_attrs)  # (N, S, E), (N, S)
+        in_tokens, avail_mask = self.tokenize(tabular_attrs, time_series_attrs)  # (N, S, E), (N, S)
         out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E)
 
         metrics = {}
@@ -557,7 +569,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         predictions = {}
         for attr, prediction_head in self.prediction_heads.items():
             pred = prediction_head(out_features)
-            if self.hparams.ordinal_mode and attr in ClinicalAttribute.ordinal_attrs():
+            if self.hparams.ordinal_mode and attr in TabularAttribute.ordinal_attrs():
                 # For ordinal targets, extract the logits from the multiple outputs of unimodal logits head
                 pred = pred[0]
             predictions[attr] = pred.squeeze(dim=1)
@@ -567,16 +579,16 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         for attr, loss in self.predict_losses.items():
             target, y_hat = batch[attr], predictions[attr]
 
-            if attr in ClinicalAttribute.categorical_attrs():
+            if attr in TabularAttribute.categorical_attrs():
                 notna_mask = target != MISSING_CAT_ATTR
-            else:  # attr in ClinicalAttribute.numerical_attrs():
+            else:  # attr in TabularAttribute.numerical_attrs():
                 notna_mask = ~target.isnan()
 
             losses[f"{loss.__class__.__name__.lower().replace('loss', '')}/{attr}"] = loss(
                 y_hat[notna_mask],
                 # For BCE losses (e.g. `BCELoss`, BCEWithLogitsLoss`, etc.), the targets have to be floats,
                 # so convert them from long to float
-                target[notna_mask] if attr not in ClinicalAttribute.binary_attrs() else target[notna_mask].float(),
+                target[notna_mask] if attr not in TabularAttribute.binary_attrs() else target[notna_mask].float(),
             )
 
             for metric_tag, metric in self.metrics[attr].items():
@@ -608,34 +620,34 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self, batch: PatientData, batch_idx: int, dataloader_idx: int = 0
     ) -> Tuple[
         Tensor,
-        Optional[Dict[ClinicalAttribute, Tensor]],
-        Optional[Dict[ClinicalAttribute, Tensor]],
-        Optional[Dict[ClinicalAttribute, Tensor]],
+        Optional[Dict[TabularAttribute, Tensor]],
+        Optional[Dict[TabularAttribute, Tensor]],
+        Optional[Dict[TabularAttribute, Tensor]],
     ]:
-        # Extract clinical and image attributes from the patient and add batch dimension
-        clinical_attrs = {
-            attr: attr_data[None, ...] for attr, attr_data in batch.items() if attr in self.hparams.clinical_attrs
+        # Extract tabular and time-series attributes from the patient and add batch dimension
+        tabular_attrs = {
+            attr: attr_data[None, ...] for attr, attr_data in batch.items() if attr in self.hparams.tabular_attrs
         }
-        img_attrs = {
+        time_series_attrs = {
             attr: attr_data[None, ...]
-            for attr, attr_data in filter_image_attributes(
-                batch, views=self.hparams.views, attributes=self.hparams.img_attrs
+            for attr, attr_data in filter_time_series_attributes(
+                batch, views=self.hparams.views, attrs=self.hparams.time_series_attrs
             ).items()
         }
 
         # Encoder's output
-        out_features = self(clinical_attrs, img_attrs)
+        out_features = self(tabular_attrs, time_series_attrs)
 
         # If the model has targets to predict, output the predictions
         predictions = None
         if self.prediction_heads:
-            predictions = self(clinical_attrs, img_attrs, task="predict")
+            predictions = self(tabular_attrs, time_series_attrs, task="predict")
 
         # If the model enforces unimodal constraint on ordinal targets, output the unimodal parametrization
         unimodal_params, unimodal_taus = None, None
         if self.hparams.ordinal_mode:
-            unimodal_params = self(clinical_attrs, img_attrs, task="unimodal_param")
-            unimodal_taus = self(clinical_attrs, img_attrs, task="unimodal_tau")
+            unimodal_params = self(tabular_attrs, time_series_attrs, task="unimodal_param")
+            unimodal_taus = self(tabular_attrs, time_series_attrs, task="unimodal_tau")
 
         # Remove unnecessary batch dimension from the different outputs
         # (only do this once all downstream inferences have been performed)

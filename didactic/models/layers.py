@@ -34,8 +34,8 @@ class PositionalEncoding(nn.Module):
         return x + self.positional_encoding[None, ...]
 
 
-class SequentialPooling(nn.Module):
-    """Sequential pooling layer."""
+class SequencePooling(nn.Module):
+    """Sequence pooling layer."""
 
     def __init__(self, d_model: int):
         """Initializes layer submodules.

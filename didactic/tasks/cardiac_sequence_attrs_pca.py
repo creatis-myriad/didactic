@@ -5,7 +5,7 @@ from typing import Any, Dict, Literal, Tuple
 
 import numpy as np
 from sklearn.decomposition import PCA
-from vital.data.cardinal.config import ImageAttribute
+from vital.data.cardinal.config import TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
 from vital.data.transforms import Interp1d
 from vital.utils.decorators import auto_cast_data
@@ -13,7 +13,7 @@ from vital.utils.norm import minmax_scaling, scale
 
 
 class CardiacSequenceAttributesPCA:
-    """PCA model specialized for cardiac sequences image attributes, where attributes have different range of values."""
+    """PCA model specialized for cardiac sequences time-series attrs, where attrs have different range of values."""
 
     def __init__(
         self,
@@ -26,7 +26,7 @@ class CardiacSequenceAttributesPCA:
         Args:
             n_components: Dimensionality of the PCA model's latent space.
             pca_kwargs: Parameters that will be passed along to the `PCA`'s init.
-            strategy: Strategies available for handling multi-domain image attributes values.
+            strategy: Strategies available for handling multi-domain time-series attributes values.
                 'global_pca': one global PCA model is trained on the normalized attributes.
                 'attr_pca': one PCA model is fitted to each attribute, side-stepping the need for normalization.
         """
@@ -117,7 +117,7 @@ class CardiacSequenceAttributesPCA:
         self,
         x: np.ndarray,
         task: Literal["encode", "decode", "reconstruct"] = "reconstruct",
-        attr: Tuple[ViewEnum, ImageAttribute] = None,
+        attr: Tuple[ViewEnum, TimeSeriesAttribute] = None,
         out_shape: Tuple[int, ...] = None,
     ) -> np.ndarray:
         """Performs test-time inference on the input.
@@ -170,11 +170,12 @@ class CardiacSequenceAttributesPCA:
                 x = x.squeeze(axis=1)
         return x
 
-    def fit(self, samples: Dict[Tuple[ViewEnum, ImageAttribute], np.ndarray]) -> "CardiacSequenceAttributesPCA":
+    def fit(self, samples: Dict[Tuple[ViewEnum, TimeSeriesAttribute], np.ndarray]) -> "CardiacSequenceAttributesPCA":
         """Fits one or multiple PCA model(s) to the attributes samples, depending on the chosen strategy.
 
         Args:
-            samples: Mapping between attributes and their samples, of shape
+            samples: Mapping between attributes and their samples, of shape (N, L), where N is the number of samples and
+                L is the length of the time-series.
                 The samples are divided by attributes to allow the model to learn models/statistics on each attribute
                 independently.
 
@@ -219,7 +220,7 @@ def main():
     from matplotlib import pyplot as plt
     from tqdm.auto import tqdm
     from vital.data.cardinal.config import CardinalTag
-    from vital.data.cardinal.utils.attributes import IMAGE_ATTR_LABELS
+    from vital.data.cardinal.utils.attributes import TIME_SERIES_ATTR_LABELS
     from vital.data.cardinal.utils.itertools import Patients
     from vital.utils.logging import configure_logging
     from vital.utils.parsing import yaml_flow_collection
@@ -239,7 +240,7 @@ def main():
         "--mask_tag",
         type=str,
         default=CardinalTag.mask,
-        help="Tag of the segmentation mask for which to extract the image attributes",
+        help="Tag of the segmentation mask for which to extract the time-series attributes",
     )
     parser.add_argument(
         "--n_features",
@@ -260,7 +261,7 @@ def main():
         type=str,
         choices=["global_pca", "attr_pca"],
         default="global_pca",
-        help="Strategies available for handling multi-domain image attributes values. \n"
+        help="Strategies available for handling multi-domain time-series attributes values. \n"
         "'global_pca': one global PCA model is trained on the normalized attributes. \n"
         "'attr_pca': one PCA model is fitted to each attribute, side-stepping the need for normalization.",
     )
@@ -357,7 +358,7 @@ def main():
             lambda x: model(x, task="decode", attr=attr_key),
             attr_samples_embedding,
             sweep_coeffs,
-            plots_kwargs={"ylabel": IMAGE_ATTR_LABELS[attr_key[1]]},
+            plots_kwargs={"ylabel": TIME_SERIES_ATTR_LABELS[attr_key[1]]},
         ):
             _save_cur_fig(title, output_dir / "sweep" / "_".join(attr_key))
 

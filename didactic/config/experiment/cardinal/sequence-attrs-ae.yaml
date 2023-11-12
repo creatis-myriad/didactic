@@ -26,7 +26,7 @@ data:
 task:
   _target_: didactic.tasks.cardiac_sequence_attrs_ae.CardiacSequenceAttributesAutoencoder
   views: ${data.patients_kwargs.views}
-  attrs: ${data.process_patient_kwargs.image_attributes}
+  attrs: ${data.process_patient_kwargs.time_series_attrs}
   normalization: data
 
   reconstruction_loss:

@@ -12,7 +12,7 @@ import param
 import seaborn as sns
 from bokeh.models import HoverTool
 from panel.layout import Panel
-from vital.data.cardinal.config import CardinalTag, ClinicalAttribute
+from vital.data.cardinal.config import CardinalTag, TabularAttribute
 from vital.data.cardinal.utils.attributes import CLINICAL_ATTR_GROUPS
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.data.cardinal.utils.itertools import Patients
@@ -39,7 +39,7 @@ def interactive_cardiac_multimodal_representation(
     Args:
         model: Transformer encoder model used to represent the patients.
         patients: Patients to project in the latent space.
-        mask_tag: Tag of the segmentation mask for which to extract the image attributes.
+        mask_tag: Tag of the segmentation mask for which to extract the time-series attributes.
         embedding_kwargs: Parameters to pass along to the PaCMAP embedding.
         categorical_attrs_lists: Nested mapping listing, for each additional categorical attribute, the patients
             belonging to each of the attribute's labels.
@@ -60,7 +60,7 @@ def interactive_cardiac_multimodal_representation(
     token_tags = list(model.token_tags)
     if model.cls_token:
         token_tags = token_tags[:-1]  # Discard CLS token from token tags if it is there
-    label_attrs = list(ClinicalAttribute)
+    label_attrs = list(TabularAttribute)
     label_attrs_by_group = {
         group: [attr for attr in group_attrs if attr in label_attrs]
         for group, group_attrs in CLINICAL_ATTR_GROUPS.items()
@@ -79,14 +79,14 @@ def interactive_cardiac_multimodal_representation(
         embedding.fit_transform(patient_encodings), index=list(patients), columns=["0", "1"]
     )
 
-    # Isolate clinical attributes data for each patient
-    patients_records = patients.to_dataframe(clinical_attrs=label_attrs, cast_to_pandas_dtypes=False)
+    # Isolate tabular attributes data for each patient
+    patients_records = patients.to_dataframe(tabular_attrs=label_attrs, cast_to_pandas_dtypes=False)
     # For categorical attributes, convert missing data to a valid string
     # NOTE: When not cast to custom pandas dtype, categorical attributes are of type `object`
     cat_attrs = [
         attr
         for attr in label_attrs
-        if attr in ClinicalAttribute.categorical_attrs() and attr not in ClinicalAttribute.boolean_attrs()
+        if attr in TabularAttribute.categorical_attrs() and attr not in TabularAttribute.boolean_attrs()
     ]
     patients_records[cat_attrs] = patients_records[cat_attrs].fillna("n/a")
 
@@ -146,11 +146,11 @@ def interactive_cardiac_multimodal_representation(
     cat_attr = pn.widgets.Select(
         name="Categorical attribute (defines cmap for left figure)",
         options=list(categorical_attrs_lists)
-        + [attr for attr in sorted(label_attrs) if attr in ClinicalAttribute.categorical_attrs()],
+        + [attr for attr in sorted(label_attrs) if attr in TabularAttribute.categorical_attrs()],
     )
     num_attr = pn.widgets.Select(
         name="Numerical attribute (defines colorbar for center figure)",
-        options=[attr for attr in sorted(label_attrs) if attr in ClinicalAttribute.numerical_attrs()],
+        options=[attr for attr in sorted(label_attrs) if attr in TabularAttribute.numerical_attrs()],
     )
     attr_attn = pn.widgets.Select(
         name="Attention w.r.t. attribute (defines colorbar for right figure)",
@@ -181,7 +181,7 @@ def interactive_cardiac_multimodal_representation(
     def _update_embedding(
         color_attr: str,
         attn_rank: int,
-        **attrs_groups: Sequence[ClinicalAttribute],
+        **attrs_groups: Sequence[TabularAttribute],
     ) -> hv.Points:
         attention_group = attrs_groups.pop("attention", [])
         attrs = list(itertools.chain.from_iterable(attrs_groups.values()))
@@ -271,7 +271,7 @@ def main():
         "--mask_tag",
         type=str,
         default=CardinalTag.mask,
-        help="Tag of the segmentation mask for which to extract the image attributes",
+        help="Tag of the segmentation mask for which to extract the time-series attributes",
     )
     parser.add_argument(
         "--embedding_kwargs",

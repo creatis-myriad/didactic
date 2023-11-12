@@ -1,8 +1,8 @@
 # @package _global_
 
 defaults:
-  - /task/data: all
-  - /task/img_tokenizer/model: time-series-transformer
+  - /task/data: tabular+time-series
+  - /task/time_series_tokenizer/model: time-series-transformer
   - /task/model/encoder: ???
   - /task/model/contrastive_head: mlp
   - /task/model/prediction_head: ft-prediction
@@ -22,14 +22,18 @@ data:
   patients_kwargs:
     views: [A4C, A2C]
   process_patient_kwargs:
-    clinical_attributes:
+    tabular_attrs:
       - ef
       - edv
       - esv
-      - a4c_ed_sc_diff
-      - a4c_ed_lc_diff
-      - a2c_ed_ic_diff
-      - a2c_ed_ac_diff
+      - a4c_ed_sc_min
+      - a4c_ed_sc_max
+      - a4c_ed_lc_min
+      - a4c_ed_lc_max
+      - a2c_ed_ic_min
+      - a2c_ed_ic_max
+      - a2c_ed_ac_min
+      - a2c_ed_ac_max
       - age
       - sex
       - bmi
@@ -83,7 +87,7 @@ data:
       - diastolic_dysfunction_param_sum
       - diastolic_dysfunction
       - ht_cm
-    image_attributes:
+    time_series_attrs:
       - gls
       - ls_left
       - ls_right
@@ -95,27 +99,27 @@ data:
   predict:
     _target_: didactic.data.cardinal.predict.CardiacRepresentationPredictionWriter
     write_path: ${sys.getcwd:}/predictions
-    hue_attrs: ${data.process_patient_kwargs.clinical_attributes}
+    hue_attrs: ${data.process_patient_kwargs.tabular_attrs}
 
-excluded_clinical_attrs: []
-# Determine the number of clinical + image attributes used by the model based on their respective configs
-n_clinical_attrs: ${builtin.len:${task.clinical_attrs}}
-n_img_attrs: ${op.mul:${builtin.len:${task.views}},${builtin.len:${task.img_attrs}}}
+exclude_tabular_attrs: []
+# Determine the number of tabular + time-series attributes used by the model based on their respective configs
+n_tabular_attrs: ${builtin.len:${task.tabular_attrs}}
+n_time_series_attrs: ${op.mul:${builtin.len:${task.views}},${builtin.len:${task.time_series_attrs}}}
 
 task:
   _target_: didactic.tasks.cardiac_multimodal_representation.CardiacMultimodalRepresentationTask
   embed_dim: 8
   views: ${data.patients_kwargs.views}
   cls_token: True
-  sequential_pooling: False
+  sequence_pooling: False
   mtr_p: 0
   mt_by_attr: False
 
-  clinical_tokenizer:
+  tabular_tokenizer:
     _target_: rtdl.FeatureTokenizer
     d_token: ${task.embed_dim}
 
-  img_tokenizer:
+  time_series_tokenizer:
     _target_: didactic.models.time_series.TimeSeriesEmbedding
     resample_dim: 64
 
@@ -124,7 +128,7 @@ callbacks:
     _target_: pytorch_lightning.callbacks.LearningRateFinder
 
 
-experiment_dirname: data=${hydra:runtime.choices.task/data}/contrastive=${oc.select:task.contrastive_loss_weight,0}/time_series_tokenizer=${hydra:runtime.choices.task/img_tokenizer/model}
+experiment_dirname: data=${hydra:runtime.choices.task/data}/contrastive=${oc.select:task.contrastive_loss_weight,0}/time_series_tokenizer=${hydra:runtime.choices.task/time_series_tokenizer/model}
 hydra:
   job:
     config:
@@ -145,10 +149,10 @@ hydra:
           - ckpt
 
           - data
-          - excluded_clinical_attrs
+          - exclude_tabular_attrs
           - task/data
-          - task.clinical_attrs
-          - task.img_attrs
+          - task.tabular_attrs
+          - task.time_series_attrs
           - task.predict_losses
           - task.contrastive_loss._target_
           - task.contrastive_loss_weight
@@ -156,7 +160,7 @@ hydra:
           - task.mt_by_attr
 
           - task.embed_dim
-          - task/img_tokenizer/model
+          - task/time_series_tokenizer/model
 
           - task/model/encoder
 

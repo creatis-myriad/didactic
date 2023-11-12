@@ -12,7 +12,7 @@ from sklearn import metrics
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
 from tqdm.auto import tqdm
-from vital.data.cardinal.config import ClinicalAttribute
+from vital.data.cardinal.config import TabularAttribute
 
 
 class GridSearchEnsembleClustering:
@@ -266,7 +266,7 @@ def main():
         "--mask_tag",
         type=str,
         default=CardinalTag.mask,
-        help="Tag of the segmentation mask for which to extract the image attributes",
+        help="Tag of the segmentation mask for which to extract the time-series attributes",
     )
     parser.add_argument(
         "--output_dir",
@@ -311,9 +311,9 @@ def main():
     )
     parser.add_argument(
         "--order_clusters_by",
-        type=ClinicalAttribute,
-        choices=list(ClinicalAttribute),
-        default=ClinicalAttribute.ht_grade,
+        type=TabularAttribute,
+        choices=list(TabularAttribute),
+        default=TabularAttribute.ht_grade,
         help="Attribute used to order the clusters by ascending mean value by cluster",
     )
     args = parser.parse_args()

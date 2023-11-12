@@ -7,9 +7,9 @@ import panel as pn
 import param
 import torch
 from panel.layout import Panel
-from vital.data.cardinal.config import CardinalTag, ImageAttribute
+from vital.data.cardinal.config import CardinalTag, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
-from vital.data.cardinal.utils.attributes import IMAGE_ATTR_LABELS
+from vital.data.cardinal.utils.attributes import TIME_SERIES_ATTR_LABELS
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.data.cardinal.utils.itertools import Patients
 from vital.data.transforms import Interp1d
@@ -20,22 +20,22 @@ from didactic.tasks.cardiac_sequence_attrs_pca import CardiacSequenceAttributesP
 hv.extension("bokeh")
 
 
-def interactive_cardiac_img_attrs_interpolation(
+def interactive_cardiac_sequence_attrs_interpolation(
     models: Dict[str, CardiacSequenceAttributesAutoencoder | CardiacSequenceAttributesPCA],
     patients: Patients,
     mask_tag: str = CardinalTag.mask,
     steps: int = 100,
 ) -> Panel:
-    """Organizes an interactive layout of widgets and images to interpolate between cardiac image attributes curves.
+    """Organizes an interactive layout of widgets to interpolate between cardiac sequences time-series attributes.
 
     Args:
-        models: Models that can encode and reconstruct image attributes curves.
-        patients: Patients whose image attributes to encode as samples between which to interpolate.
-        mask_tag: Tag of the segmentation mask to get the image attributes for.
+        models: Models that can encode and reconstruct time-series attributes curves.
+        patients: Patients whose time-series attributes to encode as samples between which to interpolate.
+        mask_tag: Tag of the segmentation mask to get the time-series attributes for.
         steps: Size of the interpolation slider, i.e. finite number of interpolation coefficients.
 
     Returns:
-        Interactive layout of widgets and images to interpolate between cardiac image attributes curves.
+        Interactive layout of widgets to interpolate between cardiac sequences time-series attributes.
     """
     # Make sure the autoencoder models are in 'eval' mode
     for model in models.values():
@@ -67,7 +67,7 @@ def interactive_cardiac_img_attrs_interpolation(
         patients[src_patient_select.value].views.keys() & patients[dest_patient_select.value].views.keys()
     )
     view_select = pn.widgets.Select(name="View", value=shared_views[0], options=shared_views)
-    attr_select = pn.widgets.Select(name="Attribute", value=ImageAttribute.gls, options=list(ImageAttribute))
+    attr_select = pn.widgets.Select(name="Attribute", value=TimeSeriesAttribute.gls, options=list(TimeSeriesAttribute))
 
     # Define the callbacks for updating widgets whose choices must be dynamically updated
     @pn.depends(src_patient=src_patient_select, dest_patient=dest_patient_select, watch=True)
@@ -127,11 +127,11 @@ def interactive_cardiac_img_attrs_interpolation(
 
     # Define the callbacks for updating attribute data streams after widget updates
     @pn.depends(patient=src_patient_select, view=view_select, attr=attr_select, watch=True)
-    def _update_src(patient: Patient.Id, view: ViewEnum, attr: ImageAttribute) -> None:
+    def _update_src(patient: Patient.Id, view: ViewEnum, attr: TimeSeriesAttribute) -> None:
         src.data = normalize_length(patients[patient].views[view].attrs[mask_tag][attr])
 
     @pn.depends(patient=dest_patient_select, view=view_select, attr=attr_select, watch=True)
-    def _update_dest(patient: Patient.Id, view: ViewEnum, attr: ImageAttribute) -> None:
+    def _update_dest(patient: Patient.Id, view: ViewEnum, attr: TimeSeriesAttribute) -> None:
         dest.data = normalize_length(patients[patient].views[view].attrs[mask_tag][attr])
 
     @pn.depends(model_tags=models_checkbox, watch=True)
@@ -176,7 +176,7 @@ def interactive_cardiac_img_attrs_interpolation(
 
         # Use `sort=False` in the `hv.NdOverlay` to respect the order of the data in the `OrderedDict`
         return hv.NdOverlay(overlay_data, kdims="data", sort=False).opts(
-            xlabel="time", ylabel=IMAGE_ATTR_LABELS[attr_select.value], legend_position="bottom_right"
+            xlabel="time", ylabel=TIME_SERIES_ATTR_LABELS[attr_select.value], legend_position="bottom_right"
         )
 
     # Configure the interactive data structure
@@ -222,7 +222,7 @@ def main():
         "--mask_tag",
         type=str,
         default=CardinalTag.mask,
-        help="Tag of the segmentation mask for which to extract the image attributes",
+        help="Tag of the segmentation mask for which to extract the time-series attributes",
     )
     parser.add_argument(
         "--steps",
@@ -252,10 +252,10 @@ def main():
         models[model_tag] = model
 
     # Organize layout
-    panel = interactive_cardiac_img_attrs_interpolation(models, Patients(**kwargs), mask_tag=mask_tag, steps=steps)
+    panel = interactive_cardiac_sequence_attrs_interpolation(models, Patients(**kwargs), mask_tag=mask_tag, steps=steps)
 
     # Launch server for the interactive app
-    pn.serve(panel, title="Cardiac Image Attributes Curves Interpolation", port=port)
+    pn.serve(panel, title="Cardiac Sequence Time-series Attributes Interpolation", port=port)
 
 
 if __name__ == "__main__":
