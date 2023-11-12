@@ -2,6 +2,7 @@
 
 defaults:
   - cardinal/cardiac-multimodal-representation
+  - override /task/model/encoder: cardinal-ft-transformer
 
 trainer:
   max_epochs: 2500

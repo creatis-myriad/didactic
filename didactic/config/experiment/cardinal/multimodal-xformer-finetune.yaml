@@ -4,6 +4,7 @@ defaults:
   - cardinal/cardiac-multimodal-representation
   - /callbacks:
       - transformer_encoder_freeze
+  - override /task/model/encoder: cardinal-ft-transformer
 
 trainer:
   max_epochs: 500
