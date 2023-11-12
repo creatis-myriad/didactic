@@ -165,5 +165,5 @@ hydra:
           - task/model/encoder
 
           - task.ordinal_mode
-          - task.model.ordinal_head.backbone_distribution
+          - task.model.ordinal_head.distribution
           - task.model.ordinal_head.tau_mode
