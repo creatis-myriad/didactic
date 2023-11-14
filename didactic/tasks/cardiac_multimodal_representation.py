@@ -479,8 +479,11 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
     @auto_move_data
     def forward(
-        self, clinical_attrs: Dict[ClinicalAttribute, Tensor], img_attrs: Dict[Tuple[ViewEnum, ImageAttribute], Tensor]
-    ) -> Tuple[Tensor, Optional[Dict[ClinicalAttribute, Tensor]]]:
+        self,
+        clinical_attrs: Dict[ClinicalAttribute, Tensor],
+        img_attrs: Dict[Tuple[ViewEnum, ImageAttribute], Tensor],
+        task: Literal["encode", "predict"] = "encode",
+    ) -> Tensor | Dict[ClinicalAttribute, Tensor]:
         """Performs a forward pass through i) the tokenizer, ii) the transformer encoder and iii) the prediction head.
 
         Args:
@@ -489,23 +492,26 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 attributes, respectively.
             img_attrs: (K: S, V: (N, ?)), Sequence of batches of image attributes, where the dimensionality of each
                 attribute can vary.
+            task: Flag indicating which type of inference task to perform.
 
         Returns:
-            Batch of i) features extracted by the encoder (N, E), and ii) predictions for each target in `losses`, if
-            the model includes a prediction head.
+            if `task` == 'encode':
+                (N, E) | (N, S * E), Batch of features extracted by the encoder.
+            if `task` == 'predict' (and the model includes prediction heads):
+                ? * (N), Prediction for each target in `losses`.
         """
         in_tokens, avail_mask = self.tokenize(clinical_attrs, img_attrs)  # (N, S, E), (N, S)
-        out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E) / (N, S * E)
+        out = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E) | (N, S * E)
 
-        # If the model includes prediction heads to predict attributes from the features, forward pass through them
-        y_hat = None
-        if self.prediction_heads:
-            y_hat = {
-                attr: prediction_head(out_features).squeeze(dim=1)
-                for attr, prediction_head in self.prediction_heads.items()
-            }
+        if task in ["predict"]:
+            if not self.prediction_heads:
+                raise ValueError(
+                    "You requested to perform a prediction task, but the model does not include any prediction heads."
+                )
 
-        return out_features, y_hat
+            out = {attr: prediction_head(out).squeeze(dim=1) for attr, prediction_head in self.prediction_heads.items()}
+
+        return out
 
     def _shared_step(self, batch: PatientData, batch_idx: int) -> Dict[str, Tensor]:
         # Extract clinical and image attributes from the batch
@@ -593,10 +599,20 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             ).items()
         }
 
-        # Forward pass through the model
-        out_features, predictions = self(clinical_attrs, img_attrs)
+        # Forward pass through the encoder
+        in_tokens, avail_mask = self.tokenize(clinical_attrs, img_attrs)  # (N, S, E), (N, S)
+        out_features = self.encode(in_tokens, avail_mask)  # (N, S, E) -> (N, E) | (N, S * E)
 
-        # Remove unnecessary batch dimension from the output
+        # If the network includes prediction heads, forward pass through them
+        predictions = None
+        if self.prediction_heads:
+            predictions = {
+                attr: prediction_head(out_features).squeeze(dim=1)
+                for attr, prediction_head in self.prediction_heads.items()
+            }
+
+        # Remove unnecessary batch dimension from the different outputs (after all potential downstream predictions have
+        # been performed)
         out_features = out_features.squeeze(dim=0)
         if predictions:
             predictions = {attr: prediction.squeeze(dim=0) for attr, prediction in predictions.items()}

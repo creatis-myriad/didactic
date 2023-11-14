@@ -24,6 +24,7 @@ def encode_patients(
     patients: Iterable[Patient],
     mask_tag: str = CardinalTag.mask,
     progress_bar: bool = False,
+    **forward_kwargs,
 ) -> np.ndarray:
     """Wrapper around encoder inference to handle boilerplate code (e.g. extracting attributes from patients, etc.).
 
@@ -33,6 +34,7 @@ def encode_patients(
         mask_tag: Tag of the segmentation mask for which to extract the image attributes.
         progress_bar: If ``True``, enables progress bars detailing the progress of the processing and encoding patients
             data.
+        **forward_kwargs: Keyword arguments to pass along to the encoder's inference method.
 
     Returns:
         (N, E), encodings of the patients.
@@ -60,6 +62,7 @@ def encode_patients(
                 model,
                 {attr: patient_attrs[attr] for attr in clinical_attrs},
                 {(view, attr): patient_attrs[view][attr] for view in model.hparams.views for attr in img_attrs},
+                **forward_kwargs,
             )
             for patient_attrs in patients_attrs
         ]
@@ -72,6 +75,7 @@ def encode_patients_attrs(
     model: CardiacMultimodalRepresentationTask,
     clinical_attrs: Dict[ClinicalAttribute, np.ndarray],
     img_attrs: Dict[Tuple[ViewEnum, ImageAttribute], np.ndarray],
+    **forward_kwargs,
 ) -> np.ndarray:
     """Wrapper around encoder inference to handle boilerplate code (e.g. numpy to torch, batching/unbatching, etc.).
 
@@ -80,6 +84,7 @@ def encode_patients_attrs(
         clinical_attrs: (K: S, V: [N]) Sequence of (batch of) clinical attributes.
         img_attrs: (K: S, V: ([N,] L)), Sequence of (batch of) image attributes, where L is the dimensionality of each
             attribute.
+        **forward_kwargs: Keyword arguments to pass along to the encoder's inference method.
 
     Returns:
         ([N,], E), encoding(s) of the patient/batch of patients.
@@ -91,7 +96,7 @@ def encode_patients_attrs(
     img_attrs = {k: v if is_batch else v[None, ...] for k, v in img_attrs.items()}
 
     with torch.inference_mode():
-        out_features, _ = model(numpy_to_torch(clinical_attrs), numpy_to_torch(img_attrs))
+        out_features = model(numpy_to_torch(clinical_attrs), numpy_to_torch(img_attrs), **forward_kwargs)
 
     # Squeeze to remove batch dimension, if it wasn't there in the input
     if not is_batch:
