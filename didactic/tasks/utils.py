@@ -4,6 +4,7 @@ from typing import Any, Dict, Iterable, Literal, Sequence, Tuple
 
 import numpy as np
 import torch
+from torch.utils.data import default_collate
 from tqdm.auto import tqdm
 from vital.data.cardinal.config import CardinalTag, TabularAttribute, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
@@ -11,7 +12,7 @@ from vital.data.cardinal.datapipes import process_patient
 from vital.data.cardinal.utils.data_dis import check_subsets
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.data.cardinal.utils.itertools import Patients
-from vital.utils.format.torch import numpy_to_torch
+from vital.utils.format.torch import numpy_to_torch, torch_apply, torch_to_numpy
 
 from didactic.models.explain import attention_rollout, k_number, register_attn_weights_hook
 from didactic.tasks.cardiac_multimodal_representation import CardiacMultimodalRepresentationTask
@@ -25,7 +26,7 @@ def encode_patients(
     mask_tag: str = CardinalTag.mask,
     progress_bar: bool = False,
     **forward_kwargs,
-) -> np.ndarray:
+) -> np.ndarray | Dict[str, np.ndarray]:
     """Wrapper around encoder inference to handle boilerplate code (e.g. extracting attributes from patients, etc.).
 
     Args:
@@ -37,7 +38,7 @@ def encode_patients(
         **forward_kwargs: Keyword arguments to pass along to the encoder's inference method.
 
     Returns:
-        (N, E), encodings of the patients.
+        (N, E) | K * (N, E), encodings or mapping of predictions by target for the patients.
     """
     tab_attrs, time_series_attrs = model.hparams.tabular_attrs, model.hparams.time_series_attrs
 
@@ -56,17 +57,20 @@ def encode_patients(
             desc=f"Encoding patients to the encoder's {model.hparams.embed_dim}D latent space",
             unit="patients",
         )
-    patients_encodings = np.vstack(
-        [
-            encode_patients_attrs(
-                model,
-                {attr: patient_attrs[attr] for attr in tab_attrs},
-                {(view, attr): patient_attrs[view][attr] for view in model.hparams.views for attr in time_series_attrs},
-                **forward_kwargs,
-            )
-            for patient_attrs in patients_attrs
-        ]
-    )
+
+    patients_encodings = [
+        encode_patients_attrs(
+            model,
+            {attr: patient_attrs[attr] for attr in tab_attrs},
+            {(view, attr): patient_attrs[view][attr] for view in model.hparams.views for attr in time_series_attrs},
+            **forward_kwargs,
+        )
+        for patient_attrs in patients_attrs
+    ]
+    # Use torch's `default_collate` to batch the encodings for each patient together, regardless of whether they are
+    # directly a numpy array or a dict of numpy arrays, then convert back to numpy array recursively
+    # This is not the most efficient, but it is the simplest implementation to handle both cases
+    patients_encodings = torch_to_numpy(default_collate(patients_encodings))
 
     return patients_encodings
 
@@ -76,7 +80,7 @@ def encode_patients_attrs(
     tabular_attrs: Dict[TabularAttribute, np.ndarray],
     time_series_attrs: Dict[Tuple[ViewEnum, TimeSeriesAttribute], np.ndarray],
     **forward_kwargs,
-) -> np.ndarray:
+) -> np.ndarray | Dict[str, np.ndarray]:
     """Wrapper around encoder inference to handle boilerplate code (e.g. numpy to torch, batching/unbatching, etc.).
 
     Args:
@@ -87,7 +91,7 @@ def encode_patients_attrs(
         **forward_kwargs: Keyword arguments to pass along to the encoder's inference method.
 
     Returns:
-        ([N,], E), encoding(s) of the patient/batch of patients.
+        ([N,], E) | K * ([N,], E), encoding(s) or mapping of prediction(s) by target for the patient/batch of patients.
     """
     is_batch = list(tabular_attrs.values())[0].ndim == 1
 
@@ -99,10 +103,11 @@ def encode_patients_attrs(
         out_features = model(numpy_to_torch(tabular_attrs), numpy_to_torch(time_series_attrs), **forward_kwargs)
 
     # Squeeze to remove batch dimension, if it wasn't there in the input
+    # Use the `apply` function to apply the squeeze recursively in case `out_features` is a dict of tensors
     if not is_batch:
-        out_features = out_features.squeeze(dim=0)
+        out_features = torch_apply(out_features, lambda x: x.squeeze(dim=0))
 
-    return out_features.cpu().numpy()
+    return torch_to_numpy(out_features)
 
 
 def summarize_patient_attn(
