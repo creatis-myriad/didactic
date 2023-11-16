@@ -110,6 +110,31 @@ for task in scratch finetune xtab-finetune; do
 done
 
 
+# Compute the alignment scores between the different trials of each config
+rm $HOME/data/didactic/results/score_models_alignment.log
+for task in scratch finetune xtab-finetune; do
+  for contrastive in 0 0.2 1; do
+    for data in "${!time_series_tokenizers[@]}"; do
+      for time_series_tokenizer in ${time_series_tokenizers[${data}]}; do
+        for target in ht_severity; do
+          # Skip alignment scores for non-ordinal models since the scores rely on the ordinal predictions
+          # begin w/ ordinal constraint
+          ordinal_mode=True
+          for distribution in poisson binomial; do
+            for tau_mode in learn_sigm learn_fn; do
+              job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode
+              echo "Computing alignment scores between $job_path models" >>$HOME/data/didactic/results/score_models_alignment.log 2>&1
+              python ~/remote/didactic/didactic/scripts/score_models_alignment.py $(find ~/data/didactic/results/cardiac-multimodal-representation/$job_path -name *.ckpt | sort | tr "\n" " ") --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --output_file=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/alignment_scores.csv >>$HOME/data/didactic/results/score_models_alignment.log 2>&1
+            done
+          done
+          # end w/ ordinal constraint
+        done
+      done
+    done
+  done
+done
+
+
 # Plot 2D embeddings of the transformer encoder representations
 rm $HOME/data/didactic/results/2d_embeddings.log
 for task in scratch finetune xtab-finetune; do
