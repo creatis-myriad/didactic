@@ -38,66 +38,107 @@ CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/resu
 # w/o time-series data + w/ ordinal constraint
 
 
-# Plot 2D embeddings of the transformer encoder representations
-for model in multimodal-xformer
-for task in scratch scratch-cotrain finetune finetune-cotrain
-for data in tab-13 tab-13+time-series tabular tabular+time-series
-for target in ht_severity
-set method_path $model/$task/$data
-set method_name $model-$task-$data-$target
-for model_id in (seq 0 9)
-echo "Generating 2D embedding of latent space of $method_name-$model_id model using PaCMAP" >>$HOME/data/didactic/results/2d_embeddings_$model.log 2>&1
-python didactic/scripts/cardiac_multimodal_representation_plot.py $HOME/data/didactic/models/$method_path/$method_name-$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --plot_categorical_attrs_dirs $HOME/dataset/cardinal/v3/patients_by_attr_label/subset --output_dir=$HOME/data/didactic/results/2d_embeddings/$method_path/$target/$model_id >>$HOME/data/didactic/results/2d_embeddings_$model.log 2>&1
-end
-end
-end
-end
-end
+# Map the time-series tokenizers available for each data option
+declare -A time_series_tokenizers
+time_series_tokenizers=(
+  [tab-13]=None
+  [tab-13+time-series]="linear-embedding transformer"
+  [tabular]=None
+  [tabular+time-series]="linear-embedding transformer"
+)
 
-## Cluster the transformer encoder representations
-#for model in multimodal-xformer
-#for task in scratch scratch-cotrain finetune finetune-cotrain
-#for data in tab-13 tab-13+time-series tabular tabular+time-series
-#for target in ht_severity
-#set method_path $model/$task/$data
-#set method_name $model-$task-$data-$target
-#for model_id in (seq 0 9)
-#for trial in 0
-#echo "Running GMM clustering trial #$trial for $method_name-$model_id model"
-#python didactic/tasks/cardiac_representation_clustering.py $HOME/data/didactic/models/$method_path/$method_name-$model_id.ckpt --data_roots $HOME/dataset/cardinal/v3/data --views A4C A2C --covariance_type diag --n_components 2 11 --num_sweeps=10 --output_dir=$HOME/data/didactic/results/clustering_hparams_search/$method_path/$target/$model_id/$trial
-#end
-#end
-#end
-#end
-#end
-#end
-#
-## Running clustering evaluation of transformer encoder representations
-#for model in multimodal-xformer
-#for task in scratch scratch-cotrain finetune finetune-cotrain
-#for data in tab-13 tab-13+time-series tabular tabular+time-series
-#for target in ht_severity
-#set method_path $model/$task/$data/$target
-#set method_name $model-$task-$data-$target
-#echo "Evaluating GMM clustering of $method_name models" >>$HOME/data/didactic/results/clustering_eval_$model.log 2>&1
-#python didactic/scripts/describe_representation_clustering.py (ls $HOME/data/didactic/results/clustering/$method_path/**/predictions.csv) --data_roots=$HOME/dataset/cardinal/v1.0/data --views A4C A2C --output_dir=$HOME/data/didactic/results/clustering_eval/$method_path >>$HOME/data/didactic/results/clustering_eval_$model.log 2>&1
-#end
-#end
-#end
-#end
-#
-## Running KNN evaluation of transformer encoder representations
-#for model in multimodal-xformer
-#for task in scratch scratch-cotrain finetune finetune-cotrain
-#for data in tab-13 tab-13+time-series tabular tabular+time-series
-#for target in ht_severity
-#for ref_attr in ht_severity
-#set method_path $model/$task/$data
-#set method_name $model-$task-$data-$target
-#echo "Evaluating KNN representations of $method_name models" >>$HOME/data/didactic/results/knn_eval_$model.log 2>&1
-#python didactic/scripts/describe_representation_knn.py (ls $HOME/data/didactic/models/$method_path/*$target*.ckpt) --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --output_dir=$HOME/data/didactic/results/knn_eval/$method_path/$target '--neigh_kwargs={n_neighbors:8}' '--clinical_plot_kwargs={color:model}' --image_n_bins=8 --reference_attr=$ref_attr >>$HOME/data/didactic/results/knn_eval_$model.log 2>&1
-#end
-#end
-#end
-#end
-#end
+# Compile the prediction scores over the different trials of each config
+for task in scratch finetune xtab-finetune; do
+  for contrastive in 0 0.2 1; do
+    for data in "${!time_series_tokenizers[@]}"; do
+      for time_series_tokenizer in ${time_series_tokenizers[${data}]}; do
+        for target in ht_severity; do
+          # begin w/o ordinal constraint
+          ordinal_mode=False
+          src_path="$task/data=$data/contrastive=$contrastive/time_series_tokenizer=$time_series_tokenizer/targets=['$target']/ordinal_mode=$ordinal_mode,distribution=binomial,tau_mode=learn_fn"
+          target_path="$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode"
+          for scores in test_categorical_scores; do
+            python ~/remote/didactic/didactic/scripts/compile_prediction_scores.py $(find ~/data/didactic/results/multirun/cardiac-multimodal-representation/$src_path -name $scores.csv | sort | tr "\n" " ") --output_file=$HOME/data/didactic/results/cardiac-multimodal-representation/$target_path/$scores.csv
+          done
+          # end w/o ordinal constraint
+          # begin w/ ordinal constraint
+          ordinal_mode=True
+          for distribution in poisson binomial; do
+            for tau_mode in learn_sigm learn_fn; do
+              src_path="$task/data=$data/contrastive=$contrastive/time_series_tokenizer=$time_series_tokenizer/targets=['$target']/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode"
+              target_path="$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode"
+              for scores in test_categorical_scores; do
+                python ~/remote/didactic/didactic/scripts/compile_prediction_scores.py $(find ~/data/didactic/results/multirun/cardiac-multimodal-representation/$src_path -name $scores.csv | sort | tr "\n" " ") --output_file=$HOME/data/didactic/results/cardiac-multimodal-representation/$target_path/$scores.csv
+              done
+            done
+          done
+          # end w/ ordinal constraint
+        done
+      done
+    done
+  done
+done
+
+
+# Copy the model checkpoints
+rm $HOME/data/didactic/results/copy_model_ckpt.log
+for task in scratch finetune xtab-finetune; do
+  for contrastive in 0 0.2 1; do
+    for data in "${!time_series_tokenizers[@]}"; do
+      for time_series_tokenizer in ${time_series_tokenizers[${data}]}; do
+        for target in ht_severity; do
+          # begin w/o ordinal constraint
+          ordinal_mode=False
+          src_path="$task/data=$data/contrastive=$contrastive/time_series_tokenizer=$time_series_tokenizer/targets=['$target']/ordinal_mode=$ordinal_mode,distribution=binomial,tau_mode=learn_fn"
+          target_path="$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode"
+          python ~/remote/didactic/didactic/scripts/copy_model_ckpt.py $(find ~/data/didactic/results/multirun/cardiac-multimodal-representation/$src_path -maxdepth 2 -name *.ckpt | sort | tr "\n" " ") --copy_filename='{}.ckpt' --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$target_path >>$HOME/data/didactic/results/copy_model_ckpt.log 2>&1
+          # end w/o ordinal constraint
+          # begin w/ ordinal constraint
+          ordinal_mode=True
+          for distribution in poisson binomial; do
+            for tau_mode in learn_sigm learn_fn; do
+              src_path="$task/data=$data/contrastive=$contrastive/time_series_tokenizer=$time_series_tokenizer/targets=['$target']/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode"
+              target_path="$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode"
+              python ~/remote/didactic/didactic/scripts/copy_model_ckpt.py $(find ~/data/didactic/results/multirun/cardiac-multimodal-representation/$src_path -maxdepth 2 -name *.ckpt | sort | tr "\n" " ") --copy_filename='{}.ckpt' --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$target_path >>$HOME/data/didactic/results/copy_model_ckpt.log 2>&1
+            done
+          done
+          # end w/ ordinal constraint
+        done
+      done
+    done
+  done
+done
+
+
+# Plot 2D embeddings of the transformer encoder representations
+rm $HOME/data/didactic/results/2d_embeddings.log
+for task in scratch finetune xtab-finetune; do
+  for contrastive in 0 0.2 1; do
+    for data in "${!time_series_tokenizers[@]}"; do
+      for time_series_tokenizer in ${time_series_tokenizers[${data}]}; do
+        for target in ht_severity; do
+          # begin w/o ordinal constraint
+          ordinal_mode=False
+          job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode
+          for model_id in $(seq 0 9); do
+            echo "Generating 2D embedding of latent space of $job_path/$model_id model using PaCMAP" >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
+            python ~/remote/didactic/didactic/scripts/cardiac_multimodal_representation_plot.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --plot_categorical_attrs_dirs $HOME/dataset/cardinal/v1.0/patients_by_attr_label/subset --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/2d_embeddings >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
+          done
+          # end w/o ordinal constraint
+          # begin w/ ordinal constraint
+          ordinal_mode=True
+          for distribution in poisson binomial; do
+            for tau_mode in learn_sigm learn_fn; do
+              job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode
+              for model_id in $(seq 0 9); do
+                echo "Generating 2D embedding of latent space of $job_path/$model_id model using PaCMAP" >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
+                python ~/remote/didactic/didactic/scripts/cardiac_multimodal_representation_plot.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --plot_categorical_attrs_dirs $HOME/dataset/cardinal/v1.0/patients_by_attr_label/subset $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/unimodal_param_bins --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/2d_embeddings >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
+              done
+            done
+          done
+          # end w/ ordinal constraint
+        done
+      done
+    done
+  done
+done
