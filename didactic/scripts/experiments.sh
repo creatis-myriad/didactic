@@ -110,6 +110,33 @@ for task in scratch finetune xtab-finetune; do
 done
 
 
+# Split patients into bins w.r.t. unimodal param predicted for each patient
+rm $HOME/data/didactic/results/group_patients_by_unimodal_param.log
+for task in scratch finetune xtab-finetune; do
+  for contrastive in 0 0.2 1; do
+    for data in "${!time_series_tokenizers[@]}"; do
+      for time_series_tokenizer in ${time_series_tokenizers[${data}]}; do
+        for target in ht_severity; do
+          # Skip patients binning for non-ordinal models since the bins rely on the ordinal head predictions
+          # begin w/ ordinal constraint
+          ordinal_mode=True
+          for distribution in poisson binomial; do
+            for tau_mode in learn_sigm learn_fn; do
+              job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode
+              for model_id in $(seq 0 9); do
+                echo "Splitting patients into bins w.r.t. unimodal param for $job_path/$model_id model" >>$HOME/data/didactic/results/group_patients_by_unimodal_param.log 2>&1
+                python ~/remote/didactic/didactic/scripts/group_patients_by_predictions.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --bins=8 --bounds 0 1 --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/unimodal_param_bins >>$HOME/data/didactic/results/group_patients_by_unimodal_param.log 2>&1
+              done
+            done
+          done
+          # end w/ ordinal constraint
+        done
+      done
+    done
+  done
+done
+
+
 # Compute the alignment scores between the different trials of each config
 rm $HOME/data/didactic/results/score_models_alignment.log
 for task in scratch finetune xtab-finetune; do
