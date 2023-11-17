@@ -109,6 +109,37 @@ for task in scratch finetune xtab-finetune; do
   done
 done
 
+# Copy the model checkpoints (self-supervised pretraining)
+declare -A exclude_tabular_attrs
+exclude_tabular_attrs=(
+  [ht_severity]="['ht_severity', 'ht_grade']"
+)
+rm $HOME/data/didactic/results/copy_pretrain_model_ckpt.log
+for task in pretrain; do
+  # begin w/ tab-13 data (no tabular attrs excluded in this case)
+  for data in tab-13 tab-13+time-series; do
+    for time_series_tokenizer in ${time_series_tokenizers[${data}]}; do
+      src_path="$task/data=$data/contrastive=$contrastive/time_series_tokenizer=$time_series_tokenizer/exclude_tabular_attrs=[]"
+      target_path="$task/$data/$time_series_tokenizer"
+      python ~/remote/didactic/didactic/scripts/copy_model_ckpt.py $(find ~/data/didactic/results/multirun/cardiac-multimodal-representation/$src_path -maxdepth 2 -name *.ckpt | sort | tr "\n" " ") --copy_filename='{}.ckpt' --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$target_path >>$HOME/data/didactic/results/copy_pretrain_model_ckpt.log 2>&1
+    done
+  done
+  # end w/ tab-13 data
+  # begin w/ tabular data
+  # TOFIX Escaping of space in paths returned by `find` to get the model ckpt paths is not working in script
+  #       (but similar command works fine interactively)
+  for data in tabular tabular+time-series; do
+    for time_series_tokenizer in ${time_series_tokenizers[${data}]}; do
+      for target in "${!exclude_tabular_attrs[@]}"; do
+        src_path="$task/data=$data/contrastive=$contrastive/time_series_tokenizer=$time_series_tokenizer/exclude_tabular_attrs=${exclude_tabular_attrs[${target}]}"
+        target_path="$task/$data/$time_series_tokenizer/$target"
+        python ~/remote/didactic/didactic/scripts/copy_model_ckpt.py $(find "$HOME/data/didactic/results/multirun/cardiac-multimodal-representation/$src_path" -maxdepth 2 -name *.ckpt -printf '"%p"\n' | sort | sed "s/'/'\\\''/g" | tr '"' "'" | tr "\n" " ") --copy_filename='{}.ckpt' --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$target_path >>$HOME/data/didactic/results/copy_pretrain_model_ckpt.log 2>&1
+      done
+    done
+  done
+  # end w/ tabular data
+done
+
 
 # Split patients into bins w.r.t. unimodal param predicted for each patient
 rm $HOME/data/didactic/results/group_patients_by_unimodal_param.log
