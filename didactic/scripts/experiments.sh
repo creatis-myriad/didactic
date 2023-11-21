@@ -277,7 +277,7 @@ for task in scratch finetune xtab-finetune; do
             for tau_mode in learn_sigm learn_fn; do
               job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode
               echo "Plotting variability of predicted continuum w.r.t. position along the continuum between $job_path models" >>$HOME/data/didactic/results/plot_models_variability.log 2>&1
-              python ~/remote/didactic/didactic/scripts/plot_models_variability.py $(find ~/data/didactic/results/cardiac-multimodal-representation/$job_path -name *.ckpt | sort | tr "\n" " ") --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --hue_attr=ht_severity --output_file=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/unimodal_param_variability.svg >>$HOME/data/didactic/results/plot_models_variability.log 2>&1
+              python ~/remote/didactic/didactic/scripts/plot_models_variability.py $(find ~/data/didactic/results/cardiac-multimodal-representation/$job_path -name *.ckpt | sort | tr "\n" " ") --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --hue_attr=ht_severity --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/unimodal_param_variability >>$HOME/data/didactic/results/plot_models_variability.log 2>&1
             done
           done
           # end w/ ordinal constraint
