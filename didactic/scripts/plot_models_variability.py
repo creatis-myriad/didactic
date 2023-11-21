@@ -44,10 +44,8 @@ def plot_embeddings_variability(
     with sns.axes_style("darkgrid"):
         grid = sns.JointGrid(data=data, x="mean", y="std", **grid_kwargs)
         grid.plot_joint(sns.scatterplot, size=std)
-        grid.plot_marginals(sns.histplot)
-
-    # Remove the marginal for the y-axis
-    grid.ax_marg_y.remove()
+        sns.histplot(data=data, x="mean", ax=grid.ax_marg_x, **grid_kwargs, legend=False)
+        sns.kdeplot(data=data, y="std", ax=grid.ax_marg_y, **grid_kwargs, legend=False, clip=(0, 1))
 
     return grid
 
@@ -141,8 +139,8 @@ def main():
     # Generate the plot of the variability
     plot = plot_embeddings_variability(embeddings, **plot_kwargs)
     plot.set_axis_labels(f"{encoding_task} mean", f"{encoding_task} std")
-    # plot.figure.subplots_adjust(top=0.9)  # Adjust the existing figure to leave place on top for the title
-    plot.figure.suptitle(f"{encoding_task} std w.r.t. mean and {hue_attr}", x=0.4, y=1.02)
+    # Move the title above the plot, to avoid overlapping with the x-axis marginal plot
+    plot.figure.suptitle(f"{encoding_task} std w.r.t. mean and {hue_attr}", y=1.02)
 
     # Save the variability plot to disk
     output_file.parent.mkdir(parents=True, exist_ok=True)
