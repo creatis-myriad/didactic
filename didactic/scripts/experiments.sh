@@ -214,7 +214,7 @@ for task in scratch finetune xtab-finetune; do
           job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode
           for model_id in $(seq 0 9); do
             echo "Generating 2D embedding of latent space of $job_path/$model_id model using PaCMAP" >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
-            python ~/remote/didactic/didactic/scripts/cardiac_multimodal_representation_plot.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --plot_categorical_attrs_dirs $HOME/dataset/cardinal/v1.0/patients_by_attr_label/subset --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/2d_embeddings >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
+            python ~/remote/didactic/didactic/scripts/cardiac_multimodal_representation_plot.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --plot_categorical_attrs_dirs $HOME/dataset/cardinal/v1.0/patients_by_attr_label/subset '--num_plot_kwargs={palette:flare}' --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/2d_embeddings >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
           done
           # end w/o ordinal constraint
           # begin w/ ordinal constraint
@@ -224,7 +224,7 @@ for task in scratch finetune xtab-finetune; do
               job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode
               for model_id in $(seq 0 9); do
                 echo "Generating 2D embedding of latent space of $job_path/$model_id model using PaCMAP" >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
-                python ~/remote/didactic/didactic/scripts/cardiac_multimodal_representation_plot.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --plot_categorical_attrs_dirs $HOME/dataset/cardinal/v1.0/patients_by_attr_label/subset $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/unimodal_param_bins --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/2d_embeddings >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
+                python ~/remote/didactic/didactic/scripts/cardiac_multimodal_representation_plot.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --plot_categorical_attrs_dirs $HOME/dataset/cardinal/v1.0/patients_by_attr_label/subset $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/unimodal_param_bins '--num_plot_kwargs={palette:flare}' --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/2d_embeddings >>$HOME/data/didactic/results/2d_embeddings.log 2>&1
               done
             done
           done
