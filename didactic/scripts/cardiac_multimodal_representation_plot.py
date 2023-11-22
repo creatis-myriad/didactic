@@ -20,7 +20,9 @@ def plot_patients_embeddings(
     categorical_attrs_lists: Dict[str, Dict[str, Sequence[Patient.Id]]] = None,
     mask_tag: str = CardinalTag.mask,
     progress_bar: bool = False,
-    **embedding_kwargs,
+    cat_plot_kwargs: dict = None,
+    num_plot_kwargs: dict = None,
+    embedding_kwargs: dict = None,
 ) -> Iterator[Tuple[TabularAttribute | str, Axes]]:
     """Generates 2D scatter plots of patients' encodings, labeled w.r.t. specific attributes.
 
@@ -32,7 +34,9 @@ def plot_patients_embeddings(
         categorical_attrs_lists: Nested mapping listing, for each additional categorical attribute, the patients
             belonging to each of the attribute's labels.
         progress_bar: If ``True``, enables progress bars detailing the progress of encoding patients.
-        **embedding_kwargs: If the data has more than 2 dimensions, PaCMAP is used to reduce the dimensionality of the
+        cat_plot_kwargs: Parameters to forward to the call to `seaborn.scatterplot` for categorical attributes figures.
+        num_plot_kwargs: Parameters to forward to the call to `seaborn.scatterplot` for numerical attributes figures.
+        embedding_kwargs: If the data has more than 2 dimensions, PaCMAP is used to reduce the dimensionality of the
             data for plotting purposes. These arguments will be passed along to the PaCMAP embedding's `init`.
 
     Returns:
@@ -50,6 +54,10 @@ def plot_patients_embeddings(
     if categorical_attrs_lists is None:
         categorical_attrs_lists = {}
     plot_attrs = plot_tabular_attrs + list(categorical_attrs_lists)
+    if cat_plot_kwargs is None:
+        cat_plot_kwargs = {}
+    if num_plot_kwargs is None:
+        num_plot_kwargs = {}
 
     # Encode the data using the model
     patient_encodings = pd.DataFrame(
@@ -86,15 +94,27 @@ def plot_patients_embeddings(
 
     # Determine from the tabular attributes' predefined order or the natural ordering in the custom attributes the
     # hue order for the plots
-    plot_attrs_order = {attr: TABULAR_CAT_ATTR_LABELS.get(attr) for attr in plot_tabular_attrs}
-    plot_attrs_order.update({attr: list(attr_lists) for attr, attr_lists in categorical_attrs_lists.items()})
+    cat_attrs_order = TABULAR_CAT_ATTR_LABELS.copy()
+    cat_attrs_order.update({attr: list(attr_lists) for attr, attr_lists in categorical_attrs_lists.items()})
 
     # Plot data w.r.t. attributes
     return zip(
         plot_attrs,
         embedding_scatterplot(
             patient_encodings,
-            [{"hue": attr, "hue_order": plot_attrs_order[attr]} for attr in plot_attrs],
+            [
+                {
+                    "hue": attr,
+                    "hue_order": cat_attrs_order.get(attr),
+                    # Add categorical/numerical kwargs depending on the attribute type
+                    **(
+                        {True: cat_plot_kwargs, False: num_plot_kwargs}[
+                            attr in [*TabularAttribute.categorical_attrs(), *list(categorical_attrs_lists)]
+                        ]
+                    ),
+                }
+                for attr in plot_attrs
+            ],
             data_tag="encoding",
             **embedding_kwargs,
         ),
@@ -150,6 +170,18 @@ def main():
         help="Parameters to pass along to the PaCMAP estimator",
     )
     parser.add_argument(
+        "--cat_plot_kwargs",
+        type=yaml_flow_collection,
+        metavar="{ARG1:VAL1,ARG2:VAL2,...}",
+        help="Parameters to forward to the call to `seaborn.scatterplot` for categorical attributes figures",
+    )
+    parser.add_argument(
+        "--num_plot_kwargs",
+        type=yaml_flow_collection,
+        metavar="{ARG1:VAL1,ARG2:VAL2,...}",
+        help="Parameters to forward to the call to `seaborn.boxplot` for numerical attributes figures",
+    )
+    parser.add_argument(
         "--output_dir",
         type=Path,
         default=Path("cardiac_multimodal_representation_plot"),
@@ -158,13 +190,29 @@ def main():
     args = parser.parse_args()
     kwargs = vars(args)
 
-    encoder_ckpt, mask_tag, plot_tabular_attrs, plot_categorical_attrs_dirs, embedding_kwargs, output_dir = (
-        kwargs.pop("pretrained_encoder"),
-        kwargs.pop("mask_tag"),
-        kwargs.pop("plot_tabular_attrs"),
-        kwargs.pop("plot_categorical_attrs_dirs"),
-        kwargs.pop("embedding_kwargs"),
-        kwargs.pop("output_dir"),
+    (
+        encoder_ckpt,
+        mask_tag,
+        plot_tabular_attrs,
+        plot_categorical_attrs_dirs,
+        cat_plot_kwargs,
+        num_plot_kwargs,
+        embedding_kwargs,
+        output_dir,
+    ) = list(
+        map(
+            kwargs.pop,
+            [
+                "pretrained_encoder",
+                "mask_tag",
+                "plot_tabular_attrs",
+                "plot_categorical_attrs_dirs",
+                "cat_plot_kwargs",
+                "num_plot_kwargs",
+                "embedding_kwargs",
+                "output_dir",
+            ],
+        )
     )
 
     # Load the data and model
@@ -195,7 +243,9 @@ def main():
         categorical_attrs_lists=categorical_attrs_lists,
         mask_tag=mask_tag,
         progress_bar=True,
-        **embedding_kwargs,
+        cat_plot_kwargs=cat_plot_kwargs,
+        num_plot_kwargs=num_plot_kwargs,
+        embedding_kwargs=embedding_kwargs,
     ):
         # Save the plots locally
         plt.savefig(output_dir / f"{attr}.svg")
