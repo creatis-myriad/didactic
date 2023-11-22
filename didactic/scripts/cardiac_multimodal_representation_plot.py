@@ -64,6 +64,17 @@ def plot_patients_embeddings(
         encode_patients(model, patients.values(), mask_tag=mask_tag, progress_bar=progress_bar), index=list(patients)
     ).rename_axis("patient")
 
+    # If the model enforces an ordinal constraint, add the predicted unimodal parameters to the encodings dataframe
+    if model.hparams.ordinal_mode:
+        cols_to_add = {}
+        for task in ["unimodal_param", "unimodal_tau"]:
+            prediction_by_target = encode_patients(
+                model, patients.values(), task=task, mask_tag=mask_tag, progress_bar=progress_bar
+            )
+            cols_to_add.update({f"{target}_{task}": prediction for target, prediction in prediction_by_target.items()})
+        plot_attrs.extend(cols_to_add.keys())
+        patient_encodings = patient_encodings.assign(**cols_to_add)
+
     # Add the built-in attributes to the encodings dataframe
     patient_encodings = patient_encodings.join(
         pd.DataFrame.from_dict(
