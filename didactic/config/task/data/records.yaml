@@ -1,0 +1,38 @@
+# @package _global_
+
+records_attrs:
+    # Attributes from patient records unrelated to echocardiogram exams
+      - age
+      - sex
+      - bmi
+      - hf
+      - cad
+      - pad
+      - stroke
+      - tobacco
+      - diabetes
+      - dyslipidemia
+      - etiology
+      - ddd
+      - bradycardic
+      - ace_inhibitor
+      - arb
+      - tz_diuretic
+      - central_acting
+      - beta_blocker
+      - spironolactone
+      - alpha_blocker
+      - ccb
+      - sbp_24
+      - dbp_24
+      - pp_24
+      - ht_severity
+      - ht_grade
+      - creat
+      - gfr
+      - nt_probnp
+      - nt_probnp_group
+
+task:
+  tabular_attrs: ${list.remove:${records_attrs},${exclude_tabular_attrs}}
+  time_series_attrs: []
