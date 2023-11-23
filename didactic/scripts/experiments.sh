@@ -251,7 +251,7 @@ for task in scratch finetune xtab-finetune; do
               job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode
               for model_id in $(seq 0 9); do
                 echo "Plotting variability of attrs w.r.t. continuum predicted by $job_path/$model_id model" >>$HOME/data/didactic/results/attrs_wrt_unimodal_param.log 2>&1
-                python ~/remote/didactic/vital/vital/data/cardinal/plot_attrs_wrt_groups.py --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --groups_txt $(find ~/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/unimodal_param_bins -name "*.txt" | sort | tr "\n" " ") --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/attrs_wrt_unimodal_param >>$HOME/data/didactic/results/attrs_wrt_unimodal_param.log 2>&1
+                python ~/remote/didactic/vital/vital/data/cardinal/plot_attrs_wrt_groups.py --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --groups_txt $(find ~/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/unimodal_param_bins -name "*.txt" | sort | tr "\n" " ") '--time_series_plot_kwargs={errorbar:,palette:flare}' --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/attrs_wrt_unimodal_param >>$HOME/data/didactic/results/attrs_wrt_unimodal_param.log 2>&1
               done
             done
           done
