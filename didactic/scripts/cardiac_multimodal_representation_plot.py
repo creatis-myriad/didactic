@@ -109,7 +109,7 @@ def plot_patients_embeddings(
     cat_attrs_order.update({attr: list(attr_lists) for attr, attr_lists in categorical_attrs_lists.items()})
 
     # Plot data w.r.t. attributes
-    return zip(
+    for attr, plot in zip(
         plot_attrs,
         embedding_scatterplot(
             patient_encodings,
@@ -129,7 +129,9 @@ def plot_patients_embeddings(
             data_tag="encoding",
             **embedding_kwargs,
         ),
-    )
+    ):
+        plot.set(title=None, xlabel=None, xticklabels=[], ylabel=None, yticklabels=[])
+        yield attr, plot
 
 
 def main():
@@ -259,7 +261,7 @@ def main():
         embedding_kwargs=embedding_kwargs,
     ):
         # Save the plots locally
-        plt.savefig(output_dir / f"{attr}.svg")
+        plt.savefig(output_dir / f"{attr}.svg", bbox_inches="tight")
         plt.close()  # Close the figure to avoid contamination between plots
 
 
