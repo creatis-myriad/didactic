@@ -159,8 +159,9 @@ def main():
             xlabel += " mean"
         ylabel = f"{encoding_task} std"
         plot.set_axis_labels(xlabel, ylabel)
+        # Uncomment following lines to add a title to the plot
         # Move the title above the plot, to avoid overlapping with the x-axis marginal plot
-        plot.figure.suptitle(f"{xlabel} w.r.t. std and {hue_attr}", y=1.02)
+        # plot.figure.suptitle(f"{xlabel} w.r.t. std and {hue_attr}", y=1.02)
 
         filename = ref_embedding if ref_embedding else "mean"
         plt.savefig(output_dir / f"{filename}.svg", bbox_inches="tight")
