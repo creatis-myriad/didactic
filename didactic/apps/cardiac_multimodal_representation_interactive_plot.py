@@ -13,7 +13,7 @@ import seaborn as sns
 from bokeh.models import HoverTool
 from panel.layout import Panel
 from vital.data.cardinal.config import CardinalTag, TabularAttribute
-from vital.data.cardinal.utils.attributes import CLINICAL_ATTR_GROUPS
+from vital.data.cardinal.utils.attributes import TABULAR_ATTR_GROUPS
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.data.cardinal.utils.itertools import Patients
 
@@ -63,7 +63,7 @@ def interactive_cardiac_multimodal_representation(
     label_attrs = list(TabularAttribute)
     label_attrs_by_group = {
         group: [attr for attr in group_attrs if attr in label_attrs]
-        for group, group_attrs in CLINICAL_ATTR_GROUPS.items()
+        for group, group_attrs in TABULAR_ATTR_GROUPS.items()
     }
     if categorical_attrs_lists:
         label_attrs_by_group["custom"] = list(categorical_attrs_lists)
