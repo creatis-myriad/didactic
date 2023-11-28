@@ -33,12 +33,29 @@ def main():
         help="Encoding task used to output the continuous prediction w.r.t. which to bin the patients",
     )
     parser.add_argument("--bins", type=int, default=8, help="Number of bins to group the patients into")
-    parser.add_argument(
+    # Add subparsers for the different methods by which to split the patients into bins
+    bins_subparsers = parser.add_subparsers(
+        title="bin_method",
+        dest="bin_method",
+        required=True,
+        description="Method by which to split the patients into bins",
+    )
+    # Subparser for the bin creation method based on the range of the bins
+    bins_range_parser = bins_subparsers.add_parser(
+        "range",
+        help="Split the patients into bins covering equal ranges of prediction values",
+    )
+    bins_range_parser.add_argument(
         "--bounds",
         type=float,
         nargs=2,
-        help="Bounds of the prediction to bin the patients by. If not provided, will default to the min and max values "
-        "of the prediction",
+        help="Lower/upper bounds of the range of prediction values to divide into bins. If not provided, will default "
+        "to the min and max values of the prediction",
+    )
+    # Subparser for the bin creation method based on the number of patients in each bin
+    bins_subparsers.add_parser(
+        "size",
+        help="Split the patients into bins with equal size, i.e. numbers of patients",
     )
     parser.add_argument(
         "--output_dir",
@@ -48,9 +65,14 @@ def main():
     args = parser.parse_args()
 
     kwargs = vars(args)
-    pretrained_encoder, mask_tag, encoding_task, num_bins, bounds, output_dir = list(
-        map(kwargs.pop, ["pretrained_encoder", "mask_tag", "encoding_task", "bins", "bounds", "output_dir"])
+    pretrained_encoder, mask_tag, encoding_task, num_bins, bin_method, output_dir = list(
+        map(
+            kwargs.pop,
+            ["pretrained_encoder", "mask_tag", "encoding_task", "bins", "bin_method", "output_dir"],
+        )
     )
+    # Optional arguments depending on the bin method
+    (bounds,) = list(map(lambda kw: kwargs.pop(kw, None), ["bounds"]))
 
     # Compute the predictions for the patients
     patients = Patients(**kwargs)
@@ -60,12 +82,30 @@ def main():
         target_attr
     ]
 
-    # Determine the bounds of the bins
-    if not bounds:
-        bounds = min(predictions), max(predictions)
-    # Compute the bounds of the bins
-    bins = np.linspace(*bounds, num=num_bins + 1)
-    bins[-1] += 1e-6  # Add epsilon to the last bin's upper bound since it's excluded by `np.digitize`
+    match bin_method:
+        case "range":
+            # Determine the bounds of the bins
+            if not bounds:
+                bounds = min(predictions), max(predictions)
+            # Compute the bounds of the bins
+            bins = np.linspace(*bounds, num=num_bins + 1)
+            bins[-1] += 1e-6  # Add epsilon to the last bin's upper bound since it's excluded by `np.digitize`
+
+        case "size":
+            # Assuming the patients are sorted, determine the indices of the patients marking the boundaries of the bins
+            # NOTE: The first bin might contain slightly fewer/more patients than the others if the number of patients
+            # is not divisible by the number of bins
+            bins_indices = np.linspace(0, len(patients) - 1, num=num_bins + 1, dtype=int)
+
+            # Extract the boundaries of the bins from the sorted predictions
+            bins = np.sort(predictions)[bins_indices]
+            bins[-1] += 1e-6  # Add epsilon to the last bin's upper bound since it's excluded by `np.digitize`
+
+        case _:
+            raise ValueError(
+                f"Unknown bin method: '{bin_method}'. Please choose from one of the available methods: "
+                f"['range', 'size']."
+            )
 
     # Assign the patients to the appropriate bins, based on their predictions
     patients_bins = np.digitize(predictions, bins) - 1  # Subtract 1 because bin indexing starts at 1
