@@ -52,7 +52,7 @@ def plot_embeddings_variability(
 
     with sns.axes_style("darkgrid"):
         grid = sns.JointGrid(data=data, x="val", y="std", **grid_kwargs)
-        grid.plot_joint(sns.scatterplot, size=std)
+        grid.plot_joint(sns.scatterplot)
         sns.histplot(data=data, x="val", ax=grid.ax_marg_x, **grid_kwargs, legend=False)
         sns.kdeplot(data=data, y="std", ax=grid.ax_marg_y, **grid_kwargs, legend=False, clip=(0, 1))
 
