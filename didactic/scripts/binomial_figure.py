@@ -22,7 +22,7 @@ def main():
     y = stats.binom.pmf(x, args.n, args.p)
 
     # Plot the binomial distribution
-    plot = so.Plot(x=x, y=y).add(so.Bars()).label(x="k", y="p(k)")
+    plot = so.Plot(x=x, y=y).add(so.Bars()).label(x="k", y="B(k,p)")
     plot.save(args.output_name, bbox_inches="tight")
 
 
