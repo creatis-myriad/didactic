@@ -10,6 +10,7 @@ def main():
     import numpy as np
     import scipy.stats as stats
     import seaborn.objects as so
+    from scipy.special import softmax
 
     parser = argparse.ArgumentParser(description="Plot a binomial distribution.")
     parser.add_argument("--n", type=int, default=6, help="Number of trials.")
@@ -17,7 +18,8 @@ def main():
     parser.add_argument("--x_labels", type=str, nargs="+", help="Tick labels of the x-axis.")
     parser.add_argument("--y_title", type=str, default="B(k,p)", help="Title of the y-axis.")
     parser.add_argument("--p", type=float, default=0.4, help="Probability of success.")
-    parser.add_argument("--output_name", type=Path, help="Output file name")
+    parser.add_argument("--tau", type=float, default=1, help="Temperature parameter for the softmax function.")
+    parser.add_argument("--output_name", type=Path, help="Output file name.")
     args = parser.parse_args()
 
     if len(args.x_labels) != args.n:
@@ -26,6 +28,7 @@ def main():
     # Compute the binomial distribution
     x = np.arange(args.n)
     y = stats.binom.pmf(x, args.n, args.p)
+    y = softmax(y / args.tau)
 
     # Plot the binomial distribution
     if categorical_x := args.x_labels is not None:
