@@ -6,10 +6,8 @@ from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
 
 import autogluon.multimodal.models.ft_transformer
 import hydra
-import rtdl
 import torch
 from omegaconf import DictConfig
-from rtdl import FeatureTokenizer
 from torch import Tensor, nn
 from torch.nn import Parameter, ParameterDict, init
 from torchmetrics.functional import accuracy, mean_absolute_error
@@ -21,7 +19,8 @@ from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
-from didactic.models.layers import PositionalEncoding, SequencePooling
+from didactic.models.layers import CLSToken, PositionalEncoding, SequencePooling
+from didactic.models.tabular import TabularEmbedding
 from didactic.models.time_series import TimeSeriesEmbedding
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         ordinal_mode: bool = True,
         contrastive_loss: Callable[[Tensor, Tensor], Tensor] | DictConfig = None,
         contrastive_loss_weight: float = 0,
-        tabular_tokenizer: Optional[FeatureTokenizer | DictConfig] = None,
+        tabular_tokenizer: Optional[TabularEmbedding | DictConfig] = None,
         time_series_tokenizer: Optional[TimeSeriesEmbedding | DictConfig] = None,
         cls_token: bool = True,
         sequence_pooling: bool = False,
@@ -269,7 +268,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         # Initialize parameters of method for reducing the dimensionality of the encoder's output to only one token
         if self.hparams.cls_token:
-            self.cls_token = rtdl.CLSToken(self.hparams.embed_dim, "uniform")
+            self.cls_token = CLSToken(self.hparams.embed_dim)
         if self.hparams.sequence_pooling:
             self.sequence_pooling = SequencePooling(self.hparams.embed_dim)
 

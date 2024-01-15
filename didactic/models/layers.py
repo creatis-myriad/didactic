@@ -34,6 +34,71 @@ class PositionalEncoding(nn.Module):
         return x + self.positional_encoding[None, ...]
 
 
+class CLSToken(nn.Module):
+    """[CLS]-token for BERT-like inference.
+
+    When used as a module, the [CLS]-token is appended **to the end** of each item in the batch.
+
+    Notes:
+        - This is a port of the `CLSToken` class from v0.0.13 of the `rtdl` package. It mixes the original
+          implementation with the simpler code of `_CLSEmbedding` from v0.0.2 of the `rtdl_revisiting_models` package.
+
+    References:
+        - Original implementation is here: https://github.com/yandex-research/rtdl/blob/f395a2db37bac74f3a209e90511e2cb84e218973/rtdl/modules.py#L380-L446
+
+    Examples:
+        .. testcode::
+
+            batch_size = 2
+            n_tokens = 3
+            d_token = 4
+            cls_token = CLSToken(d_token, 'uniform')
+            x = torch.randn(batch_size, n_tokens, d_token)
+            x = cls_token(x)
+            assert x.shape == (batch_size, n_tokens + 1, d_token)
+            assert (x[:, -1, :] == cls_token.expand(len(x))).all()
+    """
+
+    def __init__(self, d_token: int) -> None:
+        """Initializes class instance.
+
+        Args:
+            d_token: the size of token
+        """
+        super().__init__()
+        self.weight = nn.Parameter(torch.empty(d_token))
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        """Initializes the weights using a uniform distribution."""
+        d_rsqrt = self.weight.shape[-1] ** -0.5
+        nn.init.uniform_(self.weight, -d_rsqrt, d_rsqrt)
+
+    def expand(self, *leading_dimensions: int) -> Tensor:
+        """Expand (repeat) the underlying [CLS]-token to a tensor with the given leading dimensions.
+
+        A possible use case is building a batch of [CLS]-tokens.
+
+        Note:
+            Under the hood, the `torch.Tensor.expand` method is applied to the underlying :code:`weight` parameter, so
+            gradients will be propagated as expected.
+
+        Args:
+            leading_dimensions: the additional new dimensions
+
+        Returns:
+            tensor of the shape :code:`(*leading_dimensions, len(self.weight))`
+        """
+        if not leading_dimensions:
+            return self.weight
+        new_dims = (1,) * (len(leading_dimensions) - 1)
+        return self.weight.view(*new_dims, -1).expand(*leading_dimensions, -1)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Append self **to the end** of each item in the batch (see `CLSToken`)."""
+        return torch.cat([x, self.expand(len(x), 1)], dim=1)
+
+
 class SequencePooling(nn.Module):
     """Sequence pooling layer."""
 

@@ -116,7 +116,7 @@ task:
   mt_by_attr: False
 
   tabular_tokenizer:
-    _target_: rtdl.FeatureTokenizer
+    _target_: didactic.models.tabular.TabularEmbedding
     d_token: ${task.embed_dim}
 
   time_series_tokenizer:

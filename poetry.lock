@@ -4484,25 +4484,18 @@ files = [
 ]
 
 [[package]]
-name = "rtdl"
-version = "0.0.14.dev0"
-description = "Research on Tabular Deep Learning."
+name = "rtdl-revisiting-models"
+version = "0.0.2"
+description = "Revisiting Deep Learning Models for Tabular Data."
 optional = false
-python-versions = ">=3.7"
-files = []
-develop = false
+python-versions = ">=3.8"
+files = [
+    {file = "rtdl_revisiting_models-0.0.2-py3-none-any.whl", hash = "sha256:12c9cc1fc7a950cececd977ed810ec336fb8354cab96cd858855ce8e8cbe6e0a"},
+    {file = "rtdl_revisiting_models-0.0.2.tar.gz", hash = "sha256:2f430e4ce612ceceff023b78720583dd3c425446f2ce8c34fe3ad413178050a6"},
+]
 
 [package.dependencies]
-numpy = ">=1.18,<2"
-scikit-learn = ">=1.0,<2"
-torch = ">=1.7,<3"
-typing-extensions = ">=4.0.1,<5"
-
-[package.source]
-type = "git"
-url = "https://github.com/nathanpainchaud/rtdl.git"
-reference = "torch-2.X-support"
-resolved_reference = "69d98de78c00ef18f7b8689558c97bc2fd464172"
+torch = ">=1.8,<3"
 
 [[package]]
 name = "s3transfer"
@@ -6124,4 +6117,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.10.6"
-content-hash = "27ceee30d77beacdbf3320dde3214580119a805487e06b4e277f8932068c5bc7"
+content-hash = "114e2ae8f42a7cb54385b202df4d9dbc6bd920ff55c20bd8a4b26437e51f7b69"
