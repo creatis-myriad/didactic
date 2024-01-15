@@ -35,6 +35,7 @@ pandas = "*"
 torchmetrics = "*"
 PyYAML = "*"
 matplotlib = "*"
+pacmap = "*"
 comet-ml = "*"
 vital = { path = "./vital/", develop = true }
 
