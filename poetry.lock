@@ -3156,13 +3156,13 @@ files = [
 
 [[package]]
 name = "pacmap"
-version = "0.7.1"
+version = "0.7.2"
 description = "The official implementation for PaCMAP: Pairwise Controlled Manifold Approximation Projection"
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "pacmap-0.7.1-py3-none-any.whl", hash = "sha256:a14fd68108b4a9f51454e6b190349d5f585de23985c9db82e6526dd549f1152c"},
-    {file = "pacmap-0.7.1.tar.gz", hash = "sha256:fad1ce6cc5ecaccfdbdd16522692a5b45f2f3d7af32fc77c47571b435012ad1d"},
+    {file = "pacmap-0.7.2-py3-none-any.whl", hash = "sha256:36b7d897cabe6bdb8a15ef630054ecbe51e0e2585c7b43c4b4bdd649750b73e7"},
+    {file = "pacmap-0.7.2.tar.gz", hash = "sha256:a86819db8b192c66ad43ecc8b52ab89f3d56852c08a109400ccf51fff2b22f72"},
 ]
 
 [package.dependencies]
