@@ -3,4 +3,4 @@
 	url = https://github.com/vitalab/vital
 [submodule "XTab"]
 	path = XTab
-	url = https://github.com/nathanpainchaud/XTab
+	url = https://github.com/creatis-myriad/XTab
