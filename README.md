@@ -10,9 +10,9 @@ Welcome to the code repository for projects related to the *Deep manIfolD leArni
 
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![CI: Code Format](https://github.com/nathanpainchaud/didactic/actions/workflows/code-format.yml/badge.svg?branch=main)](https://github.com/nathanpainchaud/didactic/actions/workflows/code-format.yml?query=branch%3Amain)
+[![CI: Code Format](https://github.com/creatis-myriad/didactic/actions/workflows/code-format.yml/badge.svg?branch=main)](https://github.com/creatis-myriad/didactic/actions/workflows/code-format.yml?query=branch%3Amain)
 
-[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/nathanpainchaud/didactic/blob/dev/LICENSE)
+[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/creatis-myriad/didactic/blob/dev/LICENSE)
 
 ## Publications
 
@@ -36,7 +36,7 @@ divided according to what they're computing (e.g. clinical or anatomical metrics
 - [requirements](requirements): conda and pip requirement files, along with detailed instructions on how to setup a
 working environment in different conditions (local, cluster, etc.)
 
-- [vital](https://github.com/nathanpainchaud/vital/tree/dev/vital): a separate repository (included as a
+- [vital](https://github.com/creatis-myriad/vital/tree/dev/vital): a separate repository (included as a
 [git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules)), of generic PyTorch modules, losses and metrics
 functions, and other tooling (e.g. image processing, parameter groups) that are commonly used. Also contains the code
 for managing specialized medical imaging datasets, e.g. CAMUS, CARDINAL.
@@ -48,7 +48,7 @@ for managing specialized medical imaging datasets, e.g. CAMUS, CARDINAL.
 First, download the project's code:
 ```shell script
 # clone project
-git clone --recurse-submodules https://github.com/nathanpainchaud/didactic.git
+git clone --recurse-submodules https://github.com/creatis-myriad/didactic.git
 ```
 Next you have to install the project and its dependencies. The project's dependency management and packaging is handled
 by [`poetry`](https://python-poetry.org/) so the recommended way to install the project is in a virtual environment
@@ -100,8 +100,8 @@ pip install -e XTab/autogluon/core --no-deps \
 
 ### Data
 Next, navigate to the data folder for the
-[CARDINAL](https://github.com/nathanpainchaud/vital/tree/dev/vital/data/cardinal) dataset and follow the [instructions
-on how to download and prepare the data](https://github.com/nathanpainchaud/vital/tree/dev/vital/data/cardinal/README.md).
+[CARDINAL](https://github.com/creatis-myriad/vital/tree/dev/vital/data/cardinal) dataset and follow the [instructions
+on how to download and prepare the data](https://github.com/creatis-myriad/vital/tree/dev/vital/data/cardinal/README.md).
 
 ### Configuring a Run
 This project uses Hydra to handle the configuration of the
@@ -152,7 +152,7 @@ more information on how to configure Comet using environment variables or the co
 [Comet's configuration variables documentation](https://www.comet.ml/docs/python-sdk/advanced/#comet-configuration-variables).
 
 An example of a `.comet.config` file, with the appropriate fields to track experiments online, can be found
-[here](https://github.com/nathanpainchaud/vital/tree/dev/.comet.config). You can simply copy the file to the directory
+[here](https://github.com/creatis-myriad/vital/tree/dev/.comet.config). You can simply copy the file to the directory
 of your choice within your project (be sure not to commit your Comet API key!!!) and fill the values with your own Comet
 credentials and workspace setup.
 
