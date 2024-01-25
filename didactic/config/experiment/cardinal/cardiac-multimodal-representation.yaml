@@ -2,7 +2,7 @@
 
 defaults:
   - /task/data: tabular+time-series
-  - /task/time_series_tokenizer/model: time-series-transformer
+  - /task/time_series_tokenizer/model: transformer
   - /task/model/encoder: ???
   - /task/model/contrastive_head: mlp
   - /task/model/prediction_head: ft-prediction
