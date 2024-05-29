@@ -1,0 +1,119 @@
+# @package _global_
+
+defaults:
+  - /task/data: tabular
+  - /data: cardinal
+
+data:
+  patients_kwargs:
+    views: [A4C, A2C]   # Needed to avoid warnings about missing views when defaulting to all views (including A3C)
+  process_patient_kwargs:
+    tabular_attrs:
+      - ef
+      - edv
+      - esv
+      - a4c_ed_sc_min
+      - a4c_ed_sc_max
+      - a4c_ed_lc_min
+      - a4c_ed_lc_max
+      - a2c_ed_ic_min
+      - a2c_ed_ic_max
+      - a2c_ed_ac_min
+      - a2c_ed_ac_max
+      - age
+      - sex
+      - bmi
+      - hf
+      - cad
+      - pad
+      - stroke
+      - tobacco
+      - diabetes
+      - dyslipidemia
+      - etiology
+      - ddd
+      - bradycardic
+      - ace_inhibitor
+      - arb
+      - tz_diuretic
+      - central_acting
+      - beta_blocker
+      - spironolactone
+      - alpha_blocker
+      - ccb
+      - sbp_24
+      - dbp_24
+      - pp_24
+      - sbp_tte
+      - dbp_tte
+      - pp_tte
+      - ht_severity
+      - ht_grade
+      - hr_tte
+      - creat
+      - gfr
+      - nt_probnp
+      - nt_probnp_group
+      - e_velocity
+      - a_velocity
+      - mv_dt
+      - lateral_e_prime
+      - septal_e_prime
+      - reduced_e_prime
+      - e_e_prime_ratio
+      - d_dysfunction_e_e_prime_ratio
+      - la_volume
+      - dilated_la
+      - ph_vmax_tr
+      - lvm_ind
+      - lvh
+      - ivs_d
+      - lvid_d
+      - pw_d
+      - diastolic_dysfunction_param_sum
+      - diastolic_dysfunction
+      - ht_cm
+
+task:
+  _target_: didactic.tasks.cardiac_records_stratification.CardiacRecordsStratificationTask
+
+  model:
+    _target_: xgboost.XGBClassifier
+    enable_categorical: True
+    random_state: ${oc.select:trial,null}
+
+  target_attr: ???
+
+exclude_tabular_attrs: []
+# Determine the number of tabular attributes used by the model based on the config
+n_tabular_attrs: ${builtin.len:${task.tabular_attrs}}
+
+model_ckpt: xgb-model.json
+scores_filename: test_categorical_scores.csv
+
+
+experiment_dirname: data=${hydra:runtime.choices.task/data}/target=${task.target_attr}
+hydra:
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - hydra/launcher
+          - hydra.launcher.n_jobs
+          - hydra.run.dir
+          - hydra.sweep.dir
+          - hydra.sweep.subdir
+
+          - experiment
+
+          - exclude_tabular_attrs
+          - task/data
+          - task.tabular_attrs
+          - task.time_series_attrs
+          - task.target_attr
+
+  run:
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/records-xgb/${experiment_dirname}/${hydra.job.override_dirname}
+  sweep:
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/records-xgb
+    subdir: ${experiment_dirname}/${hydra.job.override_dirname}
