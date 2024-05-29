@@ -77,6 +77,9 @@ CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/resu
 # w/ ordinal constraint
 CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-multimodal-xformer-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=cardinal/multimodal-xformer-finetune trainer.enable_progress_bar=False task/data=records+time-series task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer 'task.predict_losses={ht_severity:{_target_:torch.nn.CrossEntropyLoss}}' exclude_tabular_attrs=[ht_severity,ht_grade] task.ordinal_mode=True task.model.ordinal_head.distribution=binomial task.model.ordinal_head.tau_mode=learn_fn '+trial=range(10)' 'ckpt=/home/local/USHERBROOKE/pain5474/data/didactic/results/cardiac-multimodal-representation/pretrain/${hydra:runtime.choices.task/data}/${hydra:runtime.choices.task/time_series_tokenizer/model}/ht_severity/${trial}.ckpt' >>$HOME/data/didactic/results/multimodal-xformer-finetune,data=records+ts,ordinal=True.log 2>&1
 
+# records-xgb
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation python ~/remote/didactic/didactic/tasks/cardiac_records_stratification.py -m hydra/launcher=joblib hydra.launcher.n_jobs=10 task/data=tab-13,records,tabular ~task.time_series_attrs task.target_attr=ht_severity exclude_tabular_attrs=[ht_severity,ht_grade] '+trial=range(10)' >>$HOME/data/didactic/results/records-xgb.log 2>&1
+
 
 # Map the time-series tokenizers available for each data option
 declare -A time_series_tokenizers
@@ -116,6 +119,19 @@ for task in scratch finetune xtab-finetune; do
           done
           # end w/ ordinal constraint
         done
+      done
+    done
+  done
+done
+
+# Compile the records-xgb prediction scores over the different trials of each config
+for task in records-xgb; do
+  for data in tab-13 records tabular; do
+    for target in ht_severity; do
+      src_path="$task/data=$data/target=$target"
+      target_path="$task/$data/$target"
+      for scores in test_categorical_scores; do
+        python ~/remote/didactic/didactic/scripts/compile_prediction_scores.py $(find ~/data/didactic/results/multirun/cardiac-multimodal-representation/$src_path -name $scores.csv | sort | tr "\n" " ") --output_file=$HOME/data/didactic/results/cardiac-multimodal-representation/$target_path/$scores.csv
       done
     done
   done
