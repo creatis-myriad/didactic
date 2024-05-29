@@ -53,12 +53,38 @@ CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/resu
 CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-multimodal-xformer-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=cardinal/multimodal-xformer-finetune trainer.enable_progress_bar=False task/data=tabular+time-series task.contrastive_loss_weight=0,0.2,1 task/time_series_tokenizer/model=linear-embedding,transformer 'task.predict_losses={ht_severity:{_target_:torch.nn.CrossEntropyLoss}}' exclude_tabular_attrs=[ht_severity,ht_grade] task.ordinal_mode=True task.model.ordinal_head.distribution=poisson,binomial task.model.ordinal_head.tau_mode=learn_sigm,learn_fn '+trial=range(10)' 'ckpt=/home/local/USHERBROOKE/pain5474/data/didactic/results/cardiac-multimodal-representation/pretrain/${hydra:runtime.choices.task/data}/${hydra:runtime.choices.task/time_series_tokenizer/model}/ht_severity/${trial}.ckpt' >>$HOME/data/didactic/results/multimodal-xformer-finetune,data=tab+ts,ordinal=True.log 2>&1
 
 
+### New experiments
+## records+time-series
+
+# xtab-finetune
+# w/o ordinal constraint
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-xtab-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=5 +experiment=cardinal/xtab-finetune trainer.enable_progress_bar=False task/data=records+time-series task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer 'task.predict_losses={ht_severity:{_target_:torch.nn.CrossEntropyLoss}}' exclude_tabular_attrs=[ht_severity,ht_grade] task.ordinal_mode=False ckpt=$HOME/data/models/xtab/iter_2k_patch.ckpt ~callbacks.learning_rate_finder '+trial=range(10)' >>$HOME/data/didactic/results/xtab-finetune,data=records+ts,ordinal=False.log 2>&1
+# w/ ordinal constraint
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-xtab-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=5 +experiment=cardinal/xtab-finetune trainer.enable_progress_bar=False task/data=records+time-series task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer 'task.predict_losses={ht_severity:{_target_:torch.nn.CrossEntropyLoss}}' exclude_tabular_attrs=[ht_severity,ht_grade] task.ordinal_mode=True task.model.ordinal_head.distribution=binomial task.model.ordinal_head.tau_mode=learn_fn ckpt=$HOME/data/models/xtab/iter_2k_patch.ckpt ~callbacks.learning_rate_finder '+trial=range(10)' >>$HOME/data/didactic/results/xtab-finetune,data=records+ts,ordinal=True.log 2>&1
+
+# scratch
+# w/o ordinal constraint
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-multimodal-xformer-scratch didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=cardinal/multimodal-xformer-scratch trainer.enable_progress_bar=False task/data=records+time-series task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer 'task.predict_losses={ht_severity:{_target_:torch.nn.CrossEntropyLoss}}' exclude_tabular_attrs=[ht_severity,ht_grade] task.ordinal_mode=False '+trial=range(10)' >>$HOME/data/didactic/results/multimodal-xformer-scratch,data=records+ts,ordinal=False.log 2>&1
+# w/ ordinal constraint
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-multimodal-xformer-scratch didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=cardinal/multimodal-xformer-scratch trainer.enable_progress_bar=False task/data=records+time-series task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer 'task.predict_losses={ht_severity:{_target_:torch.nn.CrossEntropyLoss}}' exclude_tabular_attrs=[ht_severity,ht_grade] task.ordinal_mode=True task.model.ordinal_head.distribution=binomial task.model.ordinal_head.tau_mode=learn_fn '+trial=range(10)' >>$HOME/data/didactic/results/multimodal-xformer-scratch,data=records+ts,ordinal=True.log 2>&1
+
+# pretrain
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-multimodal-xformer-pretrain didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=cardinal/multimodal-xformer-pretrain trainer.enable_progress_bar=False task/data=records+time-series task/time_series_tokenizer/model=linear-embedding,transformer exclude_tabular_attrs=[ht_severity,ht_grade] '+trial=range(10)' >>$HOME/data/didactic/results/multimodal-xformer-pretrain,data=records+ts.log 2>&1
+
+# finetune
+# w/o ordinal constraint
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-multimodal-xformer-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=cardinal/multimodal-xformer-finetune trainer.enable_progress_bar=False task/data=records+time-series task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer 'task.predict_losses={ht_severity:{_target_:torch.nn.CrossEntropyLoss}}' exclude_tabular_attrs=[ht_severity,ht_grade] task.ordinal_mode=False '+trial=range(10)' 'ckpt=/home/local/USHERBROOKE/pain5474/data/didactic/results/cardiac-multimodal-representation/pretrain/${hydra:runtime.choices.task/data}/${hydra:runtime.choices.task/time_series_tokenizer/model}/ht_severity/${trial}.ckpt' >>$HOME/data/didactic/results/multimodal-xformer-finetune,data=records+ts,ordinal=False.log 2>&1
+# w/ ordinal constraint
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-multimodal-xformer-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=cardinal/multimodal-xformer-finetune trainer.enable_progress_bar=False task/data=records+time-series task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer 'task.predict_losses={ht_severity:{_target_:torch.nn.CrossEntropyLoss}}' exclude_tabular_attrs=[ht_severity,ht_grade] task.ordinal_mode=True task.model.ordinal_head.distribution=binomial task.model.ordinal_head.tau_mode=learn_fn '+trial=range(10)' 'ckpt=/home/local/USHERBROOKE/pain5474/data/didactic/results/cardiac-multimodal-representation/pretrain/${hydra:runtime.choices.task/data}/${hydra:runtime.choices.task/time_series_tokenizer/model}/ht_severity/${trial}.ckpt' >>$HOME/data/didactic/results/multimodal-xformer-finetune,data=records+ts,ordinal=True.log 2>&1
+
+
 # Map the time-series tokenizers available for each data option
 declare -A time_series_tokenizers
 time_series_tokenizers=(
   [tab-13]=None
   [tab-13+time-series]="linear-embedding transformer"
   [records]=None
+  [records+time-series]="linear-embedding transformer"
   [tabular]=None
   [tabular+time-series]="linear-embedding transformer"
 )
