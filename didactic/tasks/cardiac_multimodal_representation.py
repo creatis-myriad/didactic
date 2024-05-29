@@ -81,7 +81,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             **kwargs: Keyword arguments to pass to the parent's constructor.
         """
         # Ensure string tags are converted to their appropriate enum types
-        # And to it before call to the parent's `init` so that the converted values are saved in `hparams`
+        # And do it before call to the parent's `init` so that the converted values are saved in `hparams`
         tabular_attrs = tuple(TabularAttribute[e] for e in tabular_attrs)
         views = tuple(ViewEnum[e] for e in views)
         time_series_attrs = tuple(TimeSeriesAttribute[e] for e in time_series_attrs)
