@@ -35,6 +35,7 @@ PyYAML = "*"
 matplotlib = "*"
 pacmap = "*"
 comet-ml = "*"
+xgboost = "*"
 vital = { path = "./vital/", develop = true }
 
 # XTab packages (which use the AutoGluon framework)
