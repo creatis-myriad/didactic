@@ -172,7 +172,7 @@ for task in scratch finetune xtab-finetune; do
               job_path=$task/contrastive=$contrastive/$data/$time_series_tokenizer/$target/ordinal_mode=$ordinal_mode,distribution=$distribution,tau_mode=$tau_mode
               for model_id in $(seq 0 9); do
                 echo "Splitting patients into bins w.r.t. unimodal param for $job_path/$model_id model" >>$HOME/data/didactic/results/group_patients_by_unimodal_param.log 2>&1
-                python ~/remote/didactic/didactic/scripts/group_patients_by_predictions.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --bins=8 --bounds 0 1 --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/unimodal_param_bins >>$HOME/data/didactic/results/group_patients_by_unimodal_param.log 2>&1
+                python ~/remote/didactic/didactic/scripts/group_patients_by_predictions.py $HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id.ckpt --data_roots $HOME/dataset/cardinal/v1.0/data --views A4C A2C --bins=8 --output_dir=$HOME/data/didactic/results/cardiac-multimodal-representation/$job_path/$model_id/unimodal_param_bins range --bounds 0 1 >>$HOME/data/didactic/results/group_patients_by_unimodal_param.log 2>&1
               done
             done
           done
