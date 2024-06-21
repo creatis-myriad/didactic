@@ -119,11 +119,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                     f"attributes. Either provide this tokenizer (through the `time_series_tokenizer` parameter) or "
                     f"remove any time-series attributes (by setting the `time_series_attrs` to be an empty list)."
                 )
-            if (
-                time_series_tokenizer.model
-                if isinstance(time_series_tokenizer, TimeSeriesEmbedding)
-                else time_series_tokenizer.get("model")
-            ) is None:
+            if getattr(time_series_tokenizer, "model") is None:
                 logger.warning(
                     f"You have requested the following time-series attributes: "
                     f"{[str(attr) for attr in time_series_attrs]}, but have not configured a model for the tokenizer "
