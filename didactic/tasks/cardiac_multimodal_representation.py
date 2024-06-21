@@ -423,20 +423,19 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
 
         return tokens, notna_mask
 
-    @auto_move_data
-    def encode(self, tokens: Tensor, avail_mask: Tensor, enable_augments: bool = False) -> Tensor:
-        """Embeds input sequences using the encoder model, optionally selecting/pooling output tokens for the embedding.
+    def preprocess_tokens(self, tokens: Tensor, avail_mask: Tensor, enable_augments: bool = False) -> Tensor:
+        """Preprocesses the input tokens, optionally masking missing data and random tokens to cause perturbations.
 
         Args:
-            tokens: (N, S, E), Tokens to feed to the encoder.
-            avail_mask: (N, S), Boolean mask indicating available (i.e. non-missing) tokens. Missing tokens can thus be
-                treated distinctly from others (e.g. replaced w/ a specific mask).
+            tokens: (N, S, E) Tokens to preprocess.
+            avail_mask: (N, S), Boolean mask indicating available (i.e. non-missing) tokens.
             enable_augments: Whether to perform augments on the tokens (e.g. masking) to obtain a "corrupted" view for
                 contrastive learning. Augments are already configured differently for training/testing (to avoid
                 stochastic test-time predictions), so this parameter is simply useful to easily toggle augments on/off
                 to obtain contrasting views.
 
-        Returns: (N, E), Embeddings of the input sequences.
+        Returns:
+            Tokens with missing data masked and/or random tokens replaced by the mask token.
         """
         mask_token = self.mask_token
         if isinstance(mask_token, ParameterDict):
@@ -452,6 +451,25 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             # Mask Token Replacement (MTR) data augmentation
             # Replace random non-missing tokens with the mask token to perturb the input
             tokens, _ = random_masking(tokens, mask_token, mtr_p)
+
+        return tokens
+
+    @auto_move_data
+    def encode(self, tokens: Tensor, avail_mask: Tensor, enable_augments: bool = False) -> Tensor:
+        """Embeds input sequences using the encoder model, optionally selecting/pooling output tokens for the embedding.
+
+        Args:
+            tokens: (N, S, E), Tokens to feed to the encoder.
+            avail_mask: (N, S), Boolean mask indicating available (i.e. non-missing) tokens. Missing tokens can thus be
+                treated distinctly from others (e.g. replaced w/ a specific mask).
+            enable_augments: Whether to perform augments on the tokens (e.g. masking) to obtain a "corrupted" view for
+                contrastive learning. Augments are already configured differently for training/testing (to avoid
+                stochastic test-time predictions), so this parameter is simply useful to easily toggle augments on/off
+                to obtain contrasting views.
+
+        Returns: (N, E), Embeddings of the input sequences.
+        """
+        tokens = self.preprocess_tokens(tokens, avail_mask, enable_augments=enable_augments)
 
         if self.hparams.cls_token:
             # Add the CLS token to the end of each item in the batch
