@@ -1,22 +1,24 @@
-_target_: autogluon.multimodal.models.ft_transformer.FT_Transformer
+_target_: vital.models.attention.transformer.Transformer
 
 d_token: 192
-n_blocks: 3
+n_bidirectional_blocks: 0
+n_self_blocks: 3
 attention_n_heads: 8
 attention_dropout: 0.2
 attention_initialization: kaiming
-attention_normalization: layer_norm
+attention_normalization:
+  _target_: torch.nn.LayerNorm
+  normalized_shape: ${task.model.encoder.d_token}
+  _partial_: True
 ffn_d_hidden: ${task.model.encoder.d_token}
 ffn_dropout: 0.1
-ffn_activation: reglu
-ffn_normalization: layer_norm
+ffn_activation:
+  _target_: vital.models.attention.layers.ReGLU
+  _partial_: True
+ffn_normalization:
+  _target_: torch.nn.LayerNorm
+  normalized_shape: ${task.model.encoder.d_token}
+  _partial_: True
 residual_dropout: 0.1
 prenormalization: True
 first_prenormalization: False
-last_layer_query_idx: null
-n_tokens: null # Only used when compressing the input sequence (`kv_compression_ratio is not None`)
-kv_compression_ratio: null # Only used when compressing the input sequence (`kv_compression_ratio is not None`)
-kv_compression_sharing: null # Only used when compressing the input sequence (`kv_compression_ratio is not None`)
-head_activation: False # Only used when using a projection head (`projection=True`)
-head_normalization: null # Only used when using a projection head (`projection=True`)
-d_out: null # Only used when using a projection head (`projection=True`)
