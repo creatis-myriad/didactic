@@ -87,17 +87,6 @@ from didactic import Whatever
 > All following commands in this README (and other READMEs for specific packages), will assume you're working from
 > inside the virtual environment where the project is installed.
 
-#### Optional submodule to use XTab's FT-Transformer implementation
-To use the FT-Transformer foundation model trained in the paper "XTab: Cross-table Pretraining for Tabular Transformers"
-by Zhu _et al._ (ICML 2023), you have to manually install the packages from the submodule pointing to a fork of their code
-that we've patched and published:
-```shell script
-pip install -e XTab/autogluon/core --no-deps \
-    pip install -e XTab/autogluon/common --no-deps \
-    pip install -e XTab/autogluon/features --no-deps \
-    pip install -e XTab/autogluon/multimodal --no-deps
-```
-
 ### Data
 Next, navigate to the data folder for the
 [CARDINAL](https://github.com/creatis-myriad/vital/tree/dev/vital/data/cardinal) dataset and follow the [instructions
