@@ -67,6 +67,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             contrastive_loss_weight: Factor by which to weight the `contrastive_loss` in the overall loss.
             tabular_tokenizer: Tokenizer that can process tabular, i.e. patient records, data.
             time_series_tokenizer: Tokenizer that can process time-series data.
+            cross_attention_module: Module to use for cross-attention between the tabular and time-series tokens.
             cls_token: Whether to add a CLS token to use as the encoder's output token. Mutually exclusive parameter
                 with `sequence_pooling`.
             sequence_pooling: Whether to perform sequence pooling on the encoder's output tokens. Mutually exclusive
@@ -135,6 +136,13 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             )
 
         super().__init__(*args, **kwargs)
+
+        if self.hparams.model.encoder.get("n_bidirectional_blocks", None) and not (tabular_attrs and time_series_attrs):
+            raise ValueError(
+                "You have configured a multimodal cross-attention module, but either the tabular or the time-series "
+                "tabular or the time-series attributes are missing. Make sure to provide both tabular and time-series "
+                "attributes when configuring a cross-attention module."
+            )
 
         # TOFIX: Hack to log time-series tokenizer model's hparams when it's a config for a `torch.nn.Sequential` object
         # In that case, we have to use a `ListConfig` for the reserved `_args_` key. However, the automatic
@@ -215,20 +223,20 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             )
 
         # Compute shapes relevant for defining the models' architectures
-        self.sequence_length = (
-            len(self.hparams.tabular_attrs)
-            + (len(self.hparams.time_series_attrs) * len(self.hparams.views))
-            + self.hparams.cls_token
-        )
+        self.n_tabular_attrs = len(self.hparams.tabular_attrs)
+        self.n_time_series_attrs = len(self.hparams.time_series_attrs) * len(self.hparams.views)
+        self.sequence_length = self.n_time_series_attrs + self.n_tabular_attrs + self.hparams.cls_token
 
         # Initialize transformer encoder and self-supervised + prediction heads
         self.encoder, self.contrastive_head, self.prediction_heads = self.configure_model()
 
         # Configure tokenizers and extract relevant info about the models' architectures
+        self.multimodal_encoder = False
         if isinstance(self.encoder, nn.TransformerEncoder):  # Native PyTorch `TransformerEncoder`
             self.nhead = self.encoder.layers[0].self_attn.num_heads
         elif isinstance(self.encoder, vital.models.attention.transformer.Transformer):  # vital submodule `Transformer`
-            self.nhead = self.encoder.blocks[0]["attention"].n_heads
+            self.nhead = self.hparams.model.encoder.attention_n_heads
+            self.multimodal_encoder = bool(self.hparams.model.encoder.n_bidirectional_blocks)
         else:
             raise NotImplementedError(
                 "To instantiate the cardiac multimodal representation task, it is necessary to determine the number of "
@@ -371,6 +379,16 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         tokens, notna_mask = [], []
 
         # Tokenize the attributes
+        if time_series_attrs:
+            time_series_attrs_tokens = self.time_series_tokenizer(time_series_attrs)  # S * (N, ?) -> (N, S_ts, E)
+            tokens.append(time_series_attrs_tokens)
+
+            # Indicate that, when time-series tokens are requested, they are always available
+            time_series_notna_mask = torch.full(
+                time_series_attrs_tokens.shape[:2], True, device=time_series_attrs_tokens.device
+            )
+            notna_mask.append(time_series_notna_mask)
+
         if tabular_attrs:
             num_attrs, cat_attrs = None, None
             if self.tabular_num_attrs:
@@ -402,20 +420,10 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             if self.tabular_cat_attrs:
                 notna_mask.append(cat_attrs != MISSING_CAT_ATTR)
 
-        if time_series_attrs:
-            time_series_attrs_tokens = self.time_series_tokenizer(time_series_attrs)  # S * (N, ?) -> (N, S_ts, E)
-            tokens.append(time_series_attrs_tokens)
-
-            # Indicate that, when time-series tokens are requested, they are always available
-            time_series_notna_mask = torch.full(
-                time_series_attrs_tokens.shape[:2], True, device=time_series_attrs_tokens.device
-            )
-            notna_mask.append(time_series_notna_mask)
-
         # Cast to float to make sure tokens are not represented using double
-        tokens = torch.cat(tokens, dim=1).float()  # (N, S_tab + S_ts, E)
+        tokens = torch.cat(tokens, dim=1).float()  # (N, S_ts + S_tab, E)
         # Cast to bool to make sure attention mask is represented by bool
-        notna_mask = torch.cat(notna_mask, dim=1).bool()  # (N, S_tab + S_ts)
+        notna_mask = torch.cat(notna_mask, dim=1).bool()  # (N, S_ts + S_tab)
 
         return tokens, notna_mask
 
@@ -471,8 +479,19 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             # Add the CLS token to the end of each item in the batch
             tokens = self.cls_token(tokens)
 
-        # Forward pass through the transformer encoder
-        out_tokens = self.encoder(self.positional_encoding(tokens))
+        # Add positional encoding to the tokens
+        tokens = self.positional_encoding(tokens)
+
+        if self.multimodal_encoder:
+            # Split the sequence of tokens into tabular and time-series tokens
+            ts_tokens, tab_cls_tokens = tokens[:, : self.n_time_series_attrs], tokens[:, self.n_time_series_attrs :]
+
+            # Forward pass through the transformer encoder (starting with the cross-attention module)
+            out_tokens = self.encoder(ts_tokens, tab_cls_tokens)
+
+        else:
+            # Forward pass through the transformer encoder
+            out_tokens = self.encoder(tokens)
 
         if self.hparams.sequence_pooling:
             # Perform sequence pooling of the transformers' output tokens
