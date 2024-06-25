@@ -4,9 +4,9 @@ import logging
 import math
 from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
 
-import autogluon.multimodal.models.ft_transformer
 import hydra
 import torch
+import vital
 from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch.nn import Parameter, ParameterDict, init
@@ -227,7 +227,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         # Configure tokenizers and extract relevant info about the models' architectures
         if isinstance(self.encoder, nn.TransformerEncoder):  # Native PyTorch `TransformerEncoder`
             self.nhead = self.encoder.layers[0].self_attn.num_heads
-        elif isinstance(self.encoder, autogluon.multimodal.models.ft_transformer.FT_Transformer):  # XTab FT-Transformer
+        elif isinstance(self.encoder, vital.models.attention.transformer.Transformer):  # vital submodule `Transformer`
             self.nhead = self.encoder.blocks[0]["attention"].n_heads
         else:
             raise NotImplementedError(
