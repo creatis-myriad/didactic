@@ -15,7 +15,7 @@ _args_:
       out_features: ${task.embed_dim}
 
     positional_encoding:
-      _target_: didactic.models.layers.PositionalEncoding
+      _target_: vital.models.attention.layers.PositionalEncoding
       sequence_len: ${task.time_series_tokenizer.resample_dim}
       d_model: ${task.embed_dim}
 
@@ -38,5 +38,5 @@ _args_:
         norm_first: True
 
     sequence_pooling:
-      _target_: didactic.models.layers.SequencePooling
+      _target_: vital.models.attention.layers.SequencePooling
       d_model: ${task.embed_dim}

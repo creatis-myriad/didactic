@@ -16,10 +16,10 @@ from vital.data.cardinal.config import CardinalTag, TabularAttribute, TimeSeries
 from vital.data.cardinal.config import View as ViewEnum
 from vital.data.cardinal.datapipes import MISSING_CAT_ATTR, PatientData, filter_time_series_attributes
 from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
+from vital.models.attention.layers import CLSToken, PositionalEncoding, SequencePooling
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
-from didactic.models.layers import CLSToken, PositionalEncoding, SequencePooling
 from didactic.models.tabular import TabularEmbedding
 from didactic.models.time_series import TimeSeriesEmbedding
 
