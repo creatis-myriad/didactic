@@ -1,6 +1,6 @@
 _target_: vital.models.attention.transformer.Transformer
 
-d_token: 192
+d_token: ${task.embed_dim}
 n_bidirectional_blocks: 0
 n_self_blocks: 3
 attention_n_heads: 8

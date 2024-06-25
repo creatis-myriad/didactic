@@ -19,9 +19,6 @@ task:
 
   # Architecture parameters to define the same architecture as XTab
   embed_dim: 192
-  model:
-    encoder:
-      d_token: ${task.embed_dim}
 
   # Default to the light finetuning describe in XTab's paper
   optim:
