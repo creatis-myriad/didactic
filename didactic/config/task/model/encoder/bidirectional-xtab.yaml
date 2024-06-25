@@ -1,4 +1,4 @@
 defaults:
-  - xtab-ft-transformer
+  - xtab
 
 n_bidirectional_blocks: 2

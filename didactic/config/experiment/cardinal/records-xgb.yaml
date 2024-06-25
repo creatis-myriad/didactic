@@ -82,9 +82,9 @@ task:
     enable_categorical: True
     random_state: ${oc.select:trial,null}
 
-  target_attr: ???
+  target_attr: ht_severity
 
-exclude_tabular_attrs: []
+exclude_tabular_attrs: [ht_severity,ht_grade]
 # Determine the number of tabular attributes used by the model based on the config
 n_tabular_attrs: ${builtin.len:${task.tabular_attrs}}
 

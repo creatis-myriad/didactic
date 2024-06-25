@@ -9,15 +9,21 @@ defaults:
 trainer:
   max_epochs: 500
 
-exclude_tabular_attrs: ${oc.dict.keys:task.predict_losses}
-
 task:
-  predict_losses: ???
+  predict_losses:
+    ht_severity:
+      _target_: torch.nn.CrossEntropyLoss
   ordinal_mode: True
+  contrastive_loss:
+    _target_: vital.metrics.train.metric.NTXent
+  contrastive_loss_weight: 0
+  mtr_p: [ 0.3, 0 ]
 
 callbacks:
   transformer_encoder_freeze:
-    finetune_layers: []
+    finetune_layers: null
+  learning_rate_finder:
+    _target_: pytorch_lightning.callbacks.LearningRateFinder
 
 # Change checkpoint loading defaults to:
 ckpt: ??? # Make it mandatory to provide a checkpoint
@@ -26,7 +32,7 @@ strict: False # Only load weights where they match the defined network, to only 
 
 hydra:
   run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/head/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/finetune/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}
   sweep:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/head
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/finetune
     subdir: ${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}

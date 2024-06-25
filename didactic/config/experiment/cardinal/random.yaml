@@ -7,15 +7,19 @@ defaults:
 trainer:
   max_epochs: 2500
 
-exclude_tabular_attrs: ${oc.dict.keys:task.predict_losses}
-
 task:
-  predict_losses: ???
+  predict_losses:
+    ht_severity:
+      _target_: torch.nn.CrossEntropyLoss
   ordinal_mode: True
   contrastive_loss:
     _target_: vital.metrics.train.metric.NTXent
   contrastive_loss_weight: 0
   mtr_p: [ 0.3, 0 ]
+
+callbacks:
+  learning_rate_finder:
+    _target_: pytorch_lightning.callbacks.LearningRateFinder
 
 hydra:
   run:

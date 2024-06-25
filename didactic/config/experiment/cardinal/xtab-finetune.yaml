@@ -2,15 +2,15 @@
 
 defaults:
   - cardinal/cardiac-multimodal-representation
-  - override /task/model/encoder: xtab-ft-transformer
+  - override /task/model/encoder: xtab
 
 trainer:
   max_steps: 2000
 
-exclude_tabular_attrs: ${oc.dict.keys:task.predict_losses}
-
 task:
-  predict_losses: ???
+  predict_losses:
+    ht_severity:
+      _target_: torch.nn.CrossEntropyLoss
   ordinal_mode: True
   contrastive_loss:
     _target_: vital.metrics.train.metric.NTXent
@@ -34,7 +34,7 @@ strict: False # Only load weights where they match the defined network, to only 
 
 hydra:
   run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune/${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune/${experiment_dirname}/ordinal_mode=${task.ordinal_mode}/${hydra.job.override_dirname}
   sweep:
     dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune
-    subdir: ${experiment_dirname}/targets=${oc.dict.keys:task.predict_losses}/ordinal_mode=${task.ordinal_mode},distribution=${task.model.ordinal_head.distribution},tau_mode=${task.model.ordinal_head.tau_mode}/${hydra.job.override_dirname}
+    subdir: ${experiment_dirname}/ordinal_mode=${task.ordinal_mode}/${hydra.job.override_dirname}

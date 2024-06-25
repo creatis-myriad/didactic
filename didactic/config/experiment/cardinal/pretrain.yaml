@@ -7,17 +7,19 @@ defaults:
 trainer:
   max_epochs: 2500
 
-exclude_tabular_attrs: ???
-
 task:
   contrastive_loss:
     _target_: vital.metrics.train.metric.NTXent
   contrastive_loss_weight: 1
   mtr_p: [0.3, 0]
 
+callbacks:
+  learning_rate_finder:
+    _target_: pytorch_lightning.callbacks.LearningRateFinder
+
 hydra:
   run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/pretrain/${experiment_dirname}/exclude_tabular_attrs=${exclude_tabular_attrs}/${hydra.job.override_dirname}
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/pretrain/${experiment_dirname}/${hydra.job.override_dirname}
   sweep:
     dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/pretrain
-    subdir: ${experiment_dirname}/exclude_tabular_attrs=${exclude_tabular_attrs}/${hydra.job.override_dirname}
+    subdir: ${experiment_dirname}/${hydra.job.override_dirname}

@@ -1,8 +1,8 @@
 # @package _global_
 
 defaults:
-  - /task/data: tabular+time-series
-  - /task/time_series_tokenizer/model: transformer
+  - /task/data: tab-all+ts
+  - /task/time_series_tokenizer/model: null
   - /task/model/encoder: ???
   - /task/model/contrastive_head: mlp
   - /task/model/prediction_head: ft-prediction
@@ -101,7 +101,7 @@ data:
     write_path: ${sys.getcwd:}/predictions
     hue_attrs: ${data.process_patient_kwargs.tabular_attrs}
 
-exclude_tabular_attrs: []
+exclude_tabular_attrs: [ht_severity,ht_grade]
 # Determine the number of tabular + time-series attributes used by the model based on their respective configs
 n_tabular_attrs: ${builtin.len:${task.tabular_attrs}}
 n_time_series_attrs: ${op.mul:${builtin.len:${task.views}},${builtin.len:${task.time_series_attrs}}}
@@ -123,12 +123,8 @@ task:
     _target_: didactic.models.time_series.TimeSeriesEmbedding
     resample_dim: 64
 
-callbacks:
-  learning_rate_finder:
-    _target_: pytorch_lightning.callbacks.LearningRateFinder
 
-
-experiment_dirname: data=${hydra:runtime.choices.task/data}/contrastive=${oc.select:task.contrastive_loss_weight,0}/time_series_tokenizer=${hydra:runtime.choices.task/time_series_tokenizer/model}
+experiment_dirname: data=${hydra:runtime.choices.task/data}/contrastive=${oc.select:task.contrastive_loss_weight,0}/encoder=${hydra:runtime.choices.task/model/encoder},time_series_tokenizer=${hydra:runtime.choices.task/time_series_tokenizer/model}/cls_token=${task.cls_token}
 hydra:
   job:
     config:
@@ -158,12 +154,9 @@ hydra:
           - task.contrastive_loss_weight
           - task.mtr_p
           - task.mt_by_attr
+          - task.cls_token
 
-          - task.embed_dim
           - task/time_series_tokenizer/model
-
           - task/model/encoder
 
           - task.ordinal_mode
-          - task.model.ordinal_head.distribution
-          - task.model.ordinal_head.tau_mode
