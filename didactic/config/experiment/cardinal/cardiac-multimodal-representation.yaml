@@ -111,7 +111,6 @@ task:
   embed_dim: 8
   views: ${data.patients_kwargs.views}
   cls_token: True
-  sequence_pooling: False
   mtr_p: 0
   mt_by_attr: False
 

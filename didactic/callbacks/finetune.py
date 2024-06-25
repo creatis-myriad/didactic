@@ -83,7 +83,7 @@ class TransformerEncoderFreeze(Callback):
             # Add optional models/parameters if they're used in the model
             if pl_module.hparams.cls_token:
                 modules_to_freeze.append(pl_module.cls_token)
-            if pl_module.hparams.sequence_pooling:
+            else:
                 modules_to_freeze.append(pl_module.sequence_pooling)
 
         if layers_to_freeze == list(range(num_layers)):

@@ -43,7 +43,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         tabular_tokenizer: Optional[TabularEmbedding | DictConfig] = None,
         time_series_tokenizer: Optional[TimeSeriesEmbedding | DictConfig] = None,
         cls_token: bool = True,
-        sequence_pooling: bool = False,
         mtr_p: float | Tuple[float, float] = 0,
         mt_by_attr: bool = False,
         *args,
@@ -68,10 +67,8 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             tabular_tokenizer: Tokenizer that can process tabular, i.e. patient records, data.
             time_series_tokenizer: Tokenizer that can process time-series data.
             cross_attention_module: Module to use for cross-attention between the tabular and time-series tokens.
-            cls_token: Whether to add a CLS token to use as the encoder's output token. Mutually exclusive parameter
-                with `sequence_pooling`.
-            sequence_pooling: Whether to perform sequence pooling on the encoder's output tokens. Mutually exclusive
-                parameter with `cls_token`.
+            cls_token: If `True`, adds a CLS token to use as the encoder's output token.
+                If `False`, the output token is obtained by sequence pooling over the encoder's output tokens.
             mtr_p: Probability to replace tokens by the learned MASK token, following the Mask Token Replacement (MTR)
                 data augmentation method.
                 If a float, the value will be used as masking rate during training (disabled during inference).
@@ -97,12 +94,6 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 "`contrastive_loss` will run a self-supervised (pre)training phase. Providing only `predict_losses` "
                 "will run a fully-supervised training phase. Finally, providing both at the same time will train the "
                 "model in fully-supervised mode, with the self-supervised loss as an auxiliary term."
-            )
-
-        if cls_token == sequence_pooling:
-            raise ValueError(
-                "You should specify either `cls_token` or `sequence_pooling` as the method to reduce the "
-                "dimensionality of the encoder's output from a sequence of tokens to only one token."
             )
 
         if not tabular_tokenizer and tabular_attrs:
@@ -273,7 +264,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         # Initialize parameters of method for reducing the dimensionality of the encoder's output to only one token
         if self.hparams.cls_token:
             self.cls_token = CLSToken(self.hparams.embed_dim)
-        if self.hparams.sequence_pooling:
+        else:
             self.sequence_pooling = SequencePooling(self.hparams.embed_dim)
 
         if self.hparams.mtr_p:
@@ -493,17 +484,12 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             # Forward pass through the transformer encoder
             out_tokens = self.encoder(tokens)
 
-        if self.hparams.sequence_pooling:
-            # Perform sequence pooling of the transformers' output tokens
-            out_features = self.sequence_pooling(out_tokens)  # (N, S, E) -> (N, E)
-        elif self.hparams.cls_token:
+        if self.hparams.cls_token:
             # Only keep the CLS token (i.e. the last token) from the tokens outputted by the encoder
             out_features = out_tokens[:, -1, :]  # (N, S, E) -> (N, E)
         else:
-            raise AssertionError(
-                "Either `cls_token` or `sequence_pooling` should have been enabled as the method to reduce the "
-                "dimensionality of the encoder's output from a sequence of tokens to only one token."
-            )
+            # Perform sequence pooling of the transformers' output tokens
+            out_features = self.sequence_pooling(out_tokens)  # (N, S, E) -> (N, E)
 
         return out_features
 
