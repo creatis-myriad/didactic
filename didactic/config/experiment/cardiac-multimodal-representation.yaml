@@ -111,7 +111,7 @@ task:
   embed_dim: 8
   views: ${data.patients_kwargs.views}
   cls_token: True
-  mtr_p: 0
+  mtr_p: [ 0.3, 0 ]
   mt_by_attr: False
 
   tabular_tokenizer:
@@ -123,8 +123,13 @@ task:
     resample_dim: 64
 
 
-experiment_dirname: data=${hydra:runtime.choices.task/data}/contrastive=${oc.select:task.contrastive_loss_weight,0}/encoder=${hydra:runtime.choices.task/model/encoder},time_series_tokenizer=${hydra:runtime.choices.task/time_series_tokenizer/model}/cls_token=${task.cls_token}
+run_path: ${hydra:runtime.choices.experiment}/data=${hydra:runtime.choices.task/data}/contrastive=${oc.select:task.contrastive_loss_weight,0}/cross_blocks=${oc.select:task.model.encoder.n_bidirectional_blocks,0},time_series_tokenizer=${hydra:runtime.choices.task/time_series_tokenizer/model}/cls_token=${task.cls_token}/ordinal_mode=${task.ordinal_mode}
 hydra:
+  run:
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/${run_path}/${hydra.job.override_dirname}
+  sweep:
+    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}
+    subdir: ${run_path}/${hydra.job.override_dirname}
   job:
     config:
       override_dirname:
@@ -138,24 +143,13 @@ hydra:
           - experiment
           - trainer.enable_progress_bar
           - trainer.max_epochs
+          - trainer.max_steps
 
-          - callbacks.learning_rate_finder
-
+          - task/data
+          - task.contrastive_loss_weight
+          - task/time_series_tokenizer/model
+          - task.cls_token
+          - task.ordinal_mode
           - ckpt
 
-          - data
-          - exclude_tabular_attrs
-          - task/data
-          - task.tabular_attrs
-          - task.time_series_attrs
-          - task.predict_losses
-          - task.contrastive_loss._target_
-          - task.contrastive_loss_weight
-          - task.mtr_p
-          - task.mt_by_attr
-          - task.cls_token
-
-          - task/time_series_tokenizer/model
-          - task/model/encoder
-
-          - task.ordinal_mode
+          - task.model.encoder.n_bidirectional_blocks

@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - cardinal/cardiac-multimodal-representation
+  - cardiac-multimodal-representation
   - override /task/model/encoder: xtab
 
 trainer:
@@ -15,7 +15,6 @@ task:
   contrastive_loss:
     _target_: vital.metrics.train.metric.NTXent
   contrastive_loss_weight: 0
-  mtr_p: [ 0.3, 0 ]
 
   # Architecture parameters to define the same architecture as XTab
   embed_dim: 192
@@ -31,10 +30,3 @@ task:
 ckpt: ??? # Make it mandatory to provide a checkpoint
 weights_only: True  # Only load the weights and ignore the hyperparameters
 strict: False # Only load weights where they match the defined network, to only some changes (e.g. heads, etc.)
-
-hydra:
-  run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune/${experiment_dirname}/ordinal_mode=${task.ordinal_mode}/${hydra.job.override_dirname}
-  sweep:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/xtab-finetune
-    subdir: ${experiment_dirname}/ordinal_mode=${task.ordinal_mode}/${hydra.job.override_dirname}
