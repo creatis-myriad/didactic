@@ -15,7 +15,7 @@ test: True
 
 trainer:
   devices: 1
-  precision: bf16-mixed
+  precision: 16-mixed
 
 data:
   batch_size: 128
