@@ -10,7 +10,8 @@ from matplotlib import pyplot as plt
 from pytorch_lightning.callbacks import BasePredictionWriter
 from pytorch_lightning.callbacks.prediction_writer import WriteInterval
 from scipy import stats
-from sklearn.metrics import accuracy_score, mean_absolute_error
+from scipy.special import softmax
+from sklearn.metrics import accuracy_score, mean_absolute_error, roc_auc_score
 from torch import Tensor
 from vital.data.cardinal.config import TabularAttribute, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
@@ -295,13 +296,18 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
         for subset, subset_predictions in zip(PREDICT_DATALOADERS_SUBSETS, predictions):
             subset_patients = trainer.datamodule.subsets_patients[subset]
 
-            # Compute the loss on the predictions for all the patients of the subset
+            # Compute metrics on the predictions for all the patients of the subset +
+            # collect and structure necessary predictions to compute these metrics
             subset_categorical_data, subset_numerical_data = [], []
+            classification_logits = {attr: [] for attr in target_categorical_attrs}
             for (patient_id, patient), patient_predictions in zip(subset_patients.items(), subset_predictions):
                 attr_predictions = patient_predictions[1]
                 if target_categorical_attrs:
                     patient_categorical_data = {"patient": patient_id}
                     for attr in target_categorical_attrs:
+                        # Collect the classification logits
+                        classification_logits.setdefault(attr, []).append(attr_predictions[attr].detach().cpu().numpy())
+                        # Add the hard prediction and target labels
                         patient_categorical_data.update(
                             {
                                 f"{attr}_prediction": TABULAR_CAT_ATTR_LABELS[attr][attr_predictions[attr].argmax()],
@@ -321,6 +327,9 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
                         )
                     subset_numerical_data.append(patient_numerical_data)
 
+            # Convert the classification logits to numpy arrays
+            classification_logits = {attr: np.array(probs) for attr, probs in classification_logits.items()}
+
             if subset_categorical_data:
                 subset_categorical_df = pd.DataFrame.from_records(subset_categorical_data, index="patient")
                 subset_categorical_stats = subset_categorical_df.describe().drop(["count"])
@@ -330,6 +339,14 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
                     f"{attr}_prediction": accuracy_score(
                         subset_categorical_df[f"{attr}_target"][notna_mask[f"{attr}_target"]],
                         subset_categorical_df[f"{attr}_prediction"][notna_mask[f"{attr}_target"]],
+                    )
+                    for attr in target_categorical_attrs
+                }
+                subset_categorical_stats.loc["auroc"] = {
+                    f"{attr}_prediction": roc_auc_score(
+                        subset_categorical_df[f"{attr}_target"][notna_mask[f"{attr}_target"]],
+                        softmax(classification_logits[attr][notna_mask[f"{attr}_target"]], axis=1),
+                        multi_class="ovr",
                     )
                     for attr in target_categorical_attrs
                 }

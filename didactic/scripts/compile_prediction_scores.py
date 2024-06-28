@@ -39,7 +39,7 @@ def main():
         "--scores_to_agg",
         nargs="+",
         type=str,
-        default=["acc"],
+        default=["acc", "auroc"],
         help="Names of the rows representing the scores for which to aggregate the results",
     )
     parser.add_argument(

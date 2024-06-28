@@ -10,7 +10,7 @@ import vital
 from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch.nn import Parameter, ParameterDict, init
-from torchmetrics.functional import accuracy, mean_absolute_error
+from torchmetrics.functional import accuracy, auroc, mean_absolute_error
 from vital.data.augmentation.base import mask_tokens, random_masking
 from vital.data.cardinal.config import CardinalTag, TabularAttribute, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
@@ -192,12 +192,15 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             if attr in TabularAttribute.numerical_attrs():
                 self.metrics[attr] = {"mae": mean_absolute_error}
             elif attr in TabularAttribute.binary_attrs():
-                self.metrics[attr] = {"acc": functools.partial(accuracy, task="binary")}
-            else:  # attr in TabularAttribute.categorical_attrs()
                 self.metrics[attr] = {
-                    "acc": functools.partial(
-                        accuracy, task="multiclass", num_classes=len(TABULAR_CAT_ATTR_LABELS[attr])
-                    )
+                    "acc": functools.partial(accuracy, task="binary"),
+                    "auroc": functools.partial(auroc, task="binary"),
+                }
+            else:  # attr in TabularAttribute.categorical_attrs()
+                num_classes = len(TABULAR_CAT_ATTR_LABELS[attr])
+                self.metrics[attr] = {
+                    "acc": functools.partial(accuracy, task="multiclass", num_classes=num_classes),
+                    "auroc": functools.partial(auroc, task="multiclass", num_classes=num_classes),
                 }
         # Switch on ordinal mode if i) it's enabled, and ii) there are ordinal targets to predict
         self.hparams.ordinal_mode = self.hparams.ordinal_mode and any(
