@@ -111,7 +111,7 @@ task:
   embed_dim: 8
   views: ${data.patients_kwargs.views}
   cls_token: True
-  mtr_p: [ 0.3, 0 ]
+  mtr_p: [ 0.6, 0 ]
   mt_by_attr: False
 
   tabular_tokenizer:
