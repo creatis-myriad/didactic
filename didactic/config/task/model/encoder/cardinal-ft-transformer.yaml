@@ -1,5 +1,5 @@
 defaults:
-  - torch-transformer-encoder
+  - base-transformer-encoder
 
 num_layers: 6
 encoder_layer:
