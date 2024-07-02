@@ -74,6 +74,7 @@ for task in "${!tasks_data[@]}"; do
               python ~/remote/didactic/didactic/scripts/copy_model_ckpt.py $(find $src_path/$run_path -maxdepth 2 -name *.ckpt | sort | tr "\n" " ") --copy_filename='{}.ckpt' --output_dir=$target_path/$run_path >>$target_path/copy_model_ckpt.log 2>&1
 
               # Compile the prediction scores over the different trials of each config
+              echo "Compiling predictions scores for $run_path model" >>$target_path/agg_prediction_scores.log 2>&1
               for scores in train_categorical_scores val_categorical_scores test_categorical_scores; do
                 python ~/remote/didactic/didactic/scripts/compile_prediction_scores.py $(find $src_path/$run_path -name $scores.csv | sort | tr "\n" " ") --output_file=$target_path/$run_path/$scores.csv
               done
