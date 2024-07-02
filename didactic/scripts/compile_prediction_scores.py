@@ -16,9 +16,15 @@ def compile_prediction_scores(
     Returns:
         Table of the scores aggregated over all the models.
     """
-    agg_scores_by_model = [scores.loc[scores_to_agg].dropna(axis="columns") for scores in prediction_scores]
-    agg_scores = pd.concat(agg_scores_by_model).astype(float).describe()
-    agg_scores = agg_scores.loc[agg_functions]
+    # Filter prediction scores to only include the scores to aggregate
+    scores_by_prediction = {
+        idx: scores.loc[scores_to_agg].dropna(axis="columns") for idx, scores in enumerate(prediction_scores)
+    }
+    scores_by_prediction = pd.concat(scores_by_prediction).astype(float).unstack()
+
+    # Compute descriptive statistics for the scores and only keep the ones of interest
+    agg_scores = scores_by_prediction.describe().loc[agg_functions]
+
     return agg_scores
 
 
