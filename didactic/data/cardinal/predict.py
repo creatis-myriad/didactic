@@ -340,23 +340,24 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
             if subset_categorical_data:
                 subset_categorical_df = pd.DataFrame.from_records(subset_categorical_data, index="patient")
                 subset_categorical_stats = subset_categorical_df.describe().drop(["count"])
+
                 # Compute additional custom metrics (i.e. not reported by `describe`) for categorical attributes
                 notna_mask = subset_categorical_df.notna()
-                subset_categorical_stats.loc["acc"] = {
-                    f"{attr}_prediction": accuracy_score(
-                        subset_categorical_df[f"{attr}_target"][notna_mask[f"{attr}_target"]],
-                        subset_categorical_df[f"{attr}_prediction"][notna_mask[f"{attr}_target"]],
+                for attr in target_categorical_attrs:
+                    # Extract target labels as well as predicted labels and probabilities from saved outputs
+                    target = subset_categorical_df[f"{attr}_target"][notna_mask[f"{attr}_target"]]
+                    pred_labels = subset_categorical_df[f"{attr}_prediction"][notna_mask[f"{attr}_target"]]
+                    pred_probas = classification_out[attr][notna_mask[f"{attr}_target"]]
+
+                    # Compute ordered numerical labels from saved outputs
+                    labels_arr = np.array(TABULAR_CAT_ATTR_LABELS[attr], ndmin=2)
+                    target_num_labels = (target.to_numpy().reshape(-1, 1) == labels_arr).argmax(axis=1)
+
+                    # Compute metrics
+                    subset_categorical_stats.loc["acc", f"{attr}_prediction"] = accuracy_score(target, pred_labels)
+                    subset_categorical_stats.loc["auroc", f"{attr}_prediction"] = roc_auc_score(
+                        target_num_labels, pred_probas, multi_class="ovr"
                     )
-                    for attr in target_categorical_attrs
-                }
-                subset_categorical_stats.loc["auroc"] = {
-                    f"{attr}_prediction": roc_auc_score(
-                        subset_categorical_df[f"{attr}_target"][notna_mask[f"{attr}_target"]],
-                        classification_out[attr][notna_mask[f"{attr}_target"]],
-                        multi_class="ovr",
-                    )
-                    for attr in target_categorical_attrs
-                }
 
                 # Concatenate the element-wise results + statistics in one dataframe
                 subset_categorical_scores = pd.concat([subset_categorical_stats, subset_categorical_df])
