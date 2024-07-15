@@ -1,12 +1,22 @@
 # xtab-finetune
 # tabular data only
-CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-xtab-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=xtab-finetune trainer.enable_progress_bar=False task/data=tab-selec,tab-no-echo-data,tab-all task.contrastive_loss_weight=0,0.2 task.cls_token=False,True task.ordinal_mode=False,True ckpt=$HOME/data/models/xtab/iter_2k_patch.ckpt '+trial=range(10)' >>$HOME/data/didactic/results/xtab-finetune,data=tabular-only.log 2>&1
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-xtab-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=xtab trainer.enable_progress_bar=False task/data=tab-selec,tab-no-echo-data,tab-all task.contrastive_loss_weight=0,0.2 task.cls_token=False,True task.ordinal_mode=False,True ckpt=$HOME/data/models/xtab/iter_2k_patch.ckpt '+trial=range(10)' >>$HOME/data/didactic/results/xtab-finetune,data=tabular-only.log 2>&1
 # tabular + time-series data
-CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-xtab-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=8 +experiment=xtab-finetune trainer.enable_progress_bar=False task/data=tab-selec+ts,tab-no-echo-data+ts,tab-all+ts task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer task.cls_token=False,True task.ordinal_mode=False,True ckpt=$HOME/data/models/xtab/iter_2k_patch.ckpt '+trial=range(10)' >>$HOME/data/didactic/results/xtab-finetune,data=tabular+ts.log 2>&1
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-xtab-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=8 +experiment=xtab trainer.enable_progress_bar=False task/data=tab-selec+ts,tab-no-echo-data+ts,tab-all+ts task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer task.cls_token=False,True task.ordinal_mode=False,True ckpt=$HOME/data/models/xtab/iter_2k_patch.ckpt '+trial=range(10)' >>$HOME/data/didactic/results/xtab-finetune,data=tabular+ts.log 2>&1
+
+# bidirectional-xtab-finetune
+# tabular + time-series data
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-bidirectional-xtab-finetune didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=8 +experiment=bidirectional-xtab trainer.enable_progress_bar=False task/data=tab-selec+ts,tab-no-echo-data+ts,tab-all+ts task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer task.cls_token=False,True task.ordinal_mode=False,True ckpt=$HOME/data/models/xtab/iter_2k_inc-blocks+2.ckpt '+trial=range(10)' >>$HOME/data/didactic/results/bidirectional-xtab-finetune,data=tabular+ts.log 2>&1
+
+# xtab
+# tabular data only
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-xtab didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=xtab trainer.enable_progress_bar=False task/data=tab-selec,tab-no-echo-data,tab-all task.contrastive_loss_weight=0,0.2 task.cls_token=False,True task.ordinal_mode=False,True '+trial=range(10)' >>$HOME/data/didactic/results/xtab,data=tabular-only.log 2>&1
+# tabular + time-series data
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-xtab didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=8 +experiment=xtab trainer.enable_progress_bar=False task/data=tab-selec+ts,tab-no-echo-data+ts,tab-all+ts task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer task.cls_token=False,True task.ordinal_mode=False,True '+trial=range(10)' >>$HOME/data/didactic/results/xtab,data=tabular+ts.log 2>&1
 
 # bidirectional-xtab
 # tabular + time-series data
-CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-bidirectional-xtab didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=8 +experiment=bidirectional-xtab trainer.enable_progress_bar=False task/data=tab-selec+ts,tab-no-echo-data+ts,tab-all+ts task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer task.cls_token=False,True task.ordinal_mode=False,True ckpt=$HOME/data/models/xtab/iter_2k_patch.ckpt '+trial=range(10)' >>$HOME/data/didactic/results/bidirectional-xtab,data=tabular+ts.log 2>&1
+CARDIAC_MULTIMODAL_REPR_PATH=/home/local/USHERBROOKE/pain5474/data/didactic/results/multirun/cardiac-multimodal-representation COMET_PROJECT_NAME=didactic-bidirectional-xtab didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=8 +experiment=bidirectional-xtab trainer.enable_progress_bar=False task/data=tab-selec+ts,tab-no-echo-data+ts,tab-all+ts task.contrastive_loss_weight=0,0.2 task/time_series_tokenizer/model=linear-embedding,transformer task.cls_token=False,True task.ordinal_mode=False,True '+trial=range(10)' >>$HOME/data/didactic/results/bidirectional-xtab,data=tabular+ts.log 2>&1
 
 # random
 # tabular data only
@@ -36,6 +46,8 @@ tasks_data=(
   [random]="tab-selec tab-selec+ts tab-no-echo-data tab-no-echo-data+ts tab-all tab-all+ts"
   [finetune]="tab-selec tab-selec+ts tab-no-echo-data tab-no-echo-data+ts tab-all tab-all+ts"
   [xtab-finetune]="tab-selec tab-selec+ts tab-no-echo-data tab-no-echo-data+ts tab-all tab-all+ts"
+  [bidirectional-xtab-finetune]="tab-selec+ts tab-no-echo-data+ts tab-all+ts"
+  [xtab]="tab-selec tab-selec+ts tab-no-echo-data tab-no-echo-data+ts tab-all tab-all+ts"
   [bidirectional-xtab]="tab-selec+ts tab-no-echo-data+ts tab-all+ts"
 )
 declare -A time_series_tokenizers
@@ -52,6 +64,8 @@ cross_blocks=(
   [random]="0"
   [finetune]="0"
   [xtab-finetune]="0"
+  [bidirectional-xtab-finetune]="2"
+  [xtab]="0"
   [bidirectional-xtab]="2"
 )
 
