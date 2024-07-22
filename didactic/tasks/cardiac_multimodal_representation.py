@@ -149,8 +149,8 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self.hparams.lr = None
 
         # Add shortcut to token labels to avoid downstream applications having to determine them from hyperparameters
-        self.token_tags = tabular_attrs + tuple(
-            "/".join([view, attr]) for view, attr in itertools.product(views, time_series_attrs)
+        self.token_tags = (
+            tuple("/".join([view, attr]) for view, attr in itertools.product(views, time_series_attrs)) + tabular_attrs
         )
         if cls_token:
             self.token_tags = self.token_tags + ("CLS",)
