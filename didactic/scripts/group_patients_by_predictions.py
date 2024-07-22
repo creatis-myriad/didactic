@@ -28,8 +28,8 @@ def main():
     parser.add_argument(
         "--encoding_task",
         type=str,
-        default="unimodal_param",
-        choices=["unimodal_param"],
+        default="continuum_param",
+        choices=["continuum_param"],
         help="Encoding task used to output the continuous prediction w.r.t. which to bin the patients",
     )
     parser.add_argument("--bins", type=int, default=8, help="Number of bins to group the patients into")

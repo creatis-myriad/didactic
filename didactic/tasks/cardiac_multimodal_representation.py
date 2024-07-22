@@ -59,7 +59,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 value.
             ordinal_mode: Whether to consider applicable targets as ordinal variables, which means:
                 - Applying a constraint to enforce an unimodal softmax output from the prediction heads;
-                - Predicting a new output for each ordinal target, namely the parameter of the unimodal softmax.
+                - Predicting a new continuum value for each ordinal target, namely the param. of the unimodal softmax.
             contrastive_loss: Self-supervised criterion to use as contrastive loss between pairs of (N, E) collections
                 of feature vectors, in a contrastive learning step that follows the SCARF pretraining.
                 (see ref: https://arxiv.org/abs/2106.15147)
@@ -501,7 +501,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self,
         tabular_attrs: Dict[TabularAttribute, Tensor],
         time_series_attrs: Dict[Tuple[ViewEnum, TimeSeriesAttribute], Tensor],
-        task: Literal["encode", "predict", "unimodal_param", "unimodal_tau"] = "encode",
+        task: Literal["encode", "predict", "continuum_param", "continuum_tau"] = "encode",
     ) -> Tensor | Dict[TabularAttribute, Tensor]:
         """Performs a forward pass through i) the tokenizer, ii) the transformer encoder and iii) the prediction head.
 
@@ -516,9 +516,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         Returns:
             if `task` == 'encode':
                 (N, E), Batch of features extracted by the encoder.
-            if `task` == 'unimodal_param`:
+            if `task` == 'continuum_param`:
                 ? * (M), Parameter of the unimodal logits distribution for ordinal targets.
-            if `task` == 'unimodal_tau`:
+            if `task` == 'continuum_tau`:
                 ? * (M), Temperature used to control the sharpness of the unimodal logits distribution for ordinal
                          targets.
             if `task` == 'predict' (and the model includes prediction heads):
@@ -528,11 +528,10 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             raise ValueError(
                 "You requested to perform a prediction task, but the model does not include any prediction heads."
             )
-        if task in ["unimodal_param", "unimodal_tau"] and not self.hparams.ordinal_mode:
+        if task in ["continuum_param", "continuum_tau"] and not self.hparams.ordinal_mode:
             raise ValueError(
-                "You requested to obtain some parameters of the unimodal softmax for ordinal attributes, but the model "
-                "is not configured to predict unimodal ordinal targets. Either set `ordinal_mode` to `True` or change "
-                "the requested inference task."
+                "You requested to obtain some parameters for ordinal attributes, but the model is not configured to "
+                "predict ordinal targets. Either set `ordinal_mode` to `True` or change the requested inference task."
             )
 
         in_tokens, avail_mask = self.tokenize(tabular_attrs, time_series_attrs)  # (N, S, E), (N, S)
@@ -553,9 +552,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                         attr: pred[0] if attr in TabularAttribute.ordinal_attrs() else pred
                         for attr, pred in predictions.items()
                     }
-            case "unimodal_param":
+            case "continuum_param":
                 predictions = {attr: pred[1] for attr, pred in predictions.items()}
-            case "unimodal_tau":
+            case "continuum_tau":
                 predictions = {attr: pred[2] for attr, pred in predictions.items()}
             case _:
                 raise ValueError(f"Unknown task '{task}'.")
@@ -595,7 +594,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         for attr, prediction_head in self.prediction_heads.items():
             pred = prediction_head(out_features)
             if self.hparams.ordinal_mode and attr in TabularAttribute.ordinal_attrs():
-                # For ordinal targets, extract the logits from the multiple outputs of unimodal logits head
+                # For ordinal targets, extract the logits from the multiple outputs of classification head
                 pred = pred[0]
             predictions[attr] = pred.squeeze(dim=1)
 
@@ -669,11 +668,11 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if self.prediction_heads:
             predictions = self(tabular_attrs, time_series_attrs, task="predict")
 
-        # If the model enforces unimodal constraint on ordinal targets, output the unimodal parametrization
-        unimodal_params, unimodal_taus = None, None
+        # If the model enforces constraint on ordinal targets, output the continuum parametrization
+        continuum_params, continuum_taus = None, None
         if self.hparams.ordinal_mode:
-            unimodal_params = self(tabular_attrs, time_series_attrs, task="unimodal_param")
-            unimodal_taus = self(tabular_attrs, time_series_attrs, task="unimodal_tau")
+            continuum_params = self(tabular_attrs, time_series_attrs, task="continuum_param")
+            continuum_taus = self(tabular_attrs, time_series_attrs, task="continuum_tau")
 
         # Remove unnecessary batch dimension from the different outputs
         # (only do this once all downstream inferences have been performed)
@@ -681,7 +680,9 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if predictions is not None:
             predictions = {attr: prediction.squeeze(dim=0) for attr, prediction in predictions.items()}
         if self.hparams.ordinal_mode:
-            unimodal_params = {attr: unimodal_param.squeeze(dim=0) for attr, unimodal_param in unimodal_params.items()}
-            unimodal_taus = {attr: unimodal_tau.squeeze(dim=0) for attr, unimodal_tau in unimodal_taus.items()}
+            continuum_params = {
+                attr: continuum_param.squeeze(dim=0) for attr, continuum_param in continuum_params.items()
+            }
+            continuum_taus = {attr: continuum_tau.squeeze(dim=0) for attr, continuum_tau in continuum_taus.items()}
 
-        return out_features, predictions, unimodal_params, unimodal_taus
+        return out_features, predictions, continuum_params, continuum_taus

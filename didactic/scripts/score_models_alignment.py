@@ -64,8 +64,8 @@ def main():
     parser.add_argument(
         "--encoding_task",
         type=str,
-        default="unimodal_param",
-        choices=["encode", "unimodal_param"],
+        default="continuum_param",
+        choices=["encode", "continuum_param"],
         help="Encoding task used to generate the embeddings for the computation of the alignment score",
     )
     parser.add_argument(

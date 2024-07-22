@@ -219,7 +219,7 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
                 is one sublist for each prediction dataloader provided.
         """
         prediction_example = predictions[0][0]  # 1st: subset, 2nd: batch
-        # Pre-compute the list of attributes for which we have an unimodal parameter, since this output might be None
+        # Pre-compute the list of attributes for which we have a continuum parameter, since this output might be None
         # and we don't want to access it in that case
         ordinal_attrs = list(prediction_example[2]) if prediction_example[2] else []
         features = {
@@ -247,7 +247,7 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
                     "subset",
                     "patient",
                     *self._hue_attrs,
-                    *[f"{attr}_unimodal_{pred_desc}" for attr in ordinal_attrs for pred_desc in ("param", "tau")],
+                    *[f"{attr}_continuum_{pred_desc}" for attr in ordinal_attrs for pred_desc in ("param", "tau")],
                 ],
             ),
         )
