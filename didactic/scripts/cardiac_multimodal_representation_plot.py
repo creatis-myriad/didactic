@@ -163,7 +163,7 @@ def main():
     parser.add_argument(
         "--plot_tabular_attrs",
         type=TabularAttribute,
-        nargs="+",
+        nargs="*",
         choices=list(TabularAttribute),
         default=list(TabularAttribute),
         help="Patients' tabular attributes w.r.t. which to plot the embedding",
