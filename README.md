@@ -22,25 +22,46 @@ Welcome to the code repository for projects related to the *Deep manIfolD leArni
 This is a project that aims to i) extract features used to evaluate cardiac function from echocardiography sequences,
 and ii) used these features to perform manifold learning on a population to characterize heart diseases.
 
-To help you follow along with the organization of the repository, here is a summary of each major package's purpose:
-
-- [metrics](didactic/metrics): metrics specific to our cardiac images that are not part of the
-traditional libraries. The metrics are first divided by datasets on which they apply, and ultimately they are further
-divided according to what they're computing (e.g. clinical or anatomical metrics).
-
-- [results](didactic/results): API and executable scripts for processing results during the evaluation phase.
-
-- [tasks](didactic/tasks): code that performs training and inference computations for specific tasks
-(e.g. classification, segmentation, etc.)
-
-- [requirements](requirements): conda and pip requirement files, along with detailed instructions on how to setup a
-working environment in different conditions (local, cluster, etc.)
-
-- [vital](https://github.com/creatis-myriad/vital/tree/dev/vital): a separate repository (included as a
-[git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules)), of generic PyTorch modules, losses and metrics
-functions, and other tooling (e.g. image processing, parameter groups) that are commonly used. Also contains the code
-for managing specialized medical imaging datasets, e.g. CAMUS, CARDINAL.
-
+To help you follow along with the organization of the repository, here is a summary of each major package's purpose
+(in alphabetical order):
+```
+├── didactic    <- Package directory
+│   │
+│   ├── apps        <- scripts to launch interactive applications for data visualization, model exploration, etc.
+│   │    └── representation_visualization.py    <- application to visualize the distribution of the dataset in a
+│   │                                              representation learned by a model, w.r.t. dataset variables.
+│   │
+│   ├── callbacks   <- custom callbacks for PyTorch Lightning, e.g. to log metrics, save checkpoints, etc.
+│   │   └── finetune.py <- callback to help finetune models by freezing specific layers.
+│   │
+│   ├── config      <- configuration files for Hydra, to define the options available for the `didactic` runner.
+│   │   ├── experiment  <- pre-configured experiments for the `didactic` runner.
+│   │   └── task        <- configuration for individual components of the full pipeline.
+│   │       ├── data                    <- subsets of available data.
+│   │       ├── model                   <- model components.
+│   │       └── time_series_tokenizer   <- tokenizers for time-series data.
+│   │
+│   ├── data        <- dataset-specific code
+│   │   └── cardinal    <- CARDINAL dataset-specific code.
+│   │       └── predict.py    <- Implementation of a Lightning `BasePredictionWriter` to evaluate a multimodal
+│   │                            representation learning model on the CARDINAL dataset.
+│   │
+│   ├── models      <- custom layers and modules used in our pipeline
+│   │   ├── layers.py       <- layers, e.g. prediction head, ordinal classification, etc.
+│   │   ├── tabular.py      <- module for tabular data tokenization (fig. 2.a in the paper).
+│   │   └── time_series.py  <- module for time-series data tokenization (fig. 2.b in the paper).
+│   │
+│   ├── scripts     <- various scripts, e.g. to produce figures, aggregate results from multiple jobs, etc.
+│   │
+│   └── tasks       <- implementation of complete training and inference pipeline for specific tasks (e.g. classification,
+│       │              segmentation, etc.)
+│       └── cardiac_multimodal_representation.py    <- full pipeline to train/infer on tabular and time-series data
+│                                                      (fig. 1 in the paper).
+│
+└── vital       <- separate repository (included as a git submodule), of generic PyTorch modules, losses, metrics, and
+                   other tooling (e.g. image processing) commonly used. Also contains data-handling for specialized
+                   medical imaging datasets, e.g. CAMUS, CARDINAL.
+```
 
 ## How to Run
 
@@ -79,9 +100,6 @@ To test that the project was installed successfully, you can try the following c
 # now you can do:
 from didactic import Whatever
 ```
-> **Note**
-> The instructions above for setting up an environment are for general purpose/local environments. For more specific use
-> cases, e.g. on DRAC clusters, please refer to the [installation README](INSTALLATION.md).
 
 > **Warning**
 > All following commands in this README (and other READMEs for specific packages), will assume you're working from
