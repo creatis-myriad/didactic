@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks import BasePredictionWriter
 from pytorch_lightning.callbacks.prediction_writer import WriteInterval
 from scipy import stats
 from scipy.special import softmax
-from sklearn.metrics import accuracy_score, mean_absolute_error, roc_auc_score
+from sklearn.metrics import accuracy_score, confusion_matrix, mean_absolute_error, roc_auc_score
 from vital.data.cardinal.config import TabularAttribute
 from vital.data.cardinal.data_module import PREDICT_DATALOADERS_SUBSETS
 from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
@@ -222,7 +222,13 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
                     target_num_labels = (target.to_numpy().reshape(-1, 1) == labels_arr).argmax(axis=1)
 
                     # Compute metrics
+                    # Average accuracy across all classes
                     subset_categorical_stats.loc["acc", f"{attr}_prediction"] = accuracy_score(target, pred_labels)
+                    # Accuracy for each class
+                    class_accuracies = confusion_matrix(target, pred_labels, normalize="true").diagonal()
+                    for class_label, class_accuracy in zip(TABULAR_CAT_ATTR_LABELS[attr], class_accuracies):
+                        subset_categorical_stats.loc[f"acc_{class_label}", f"{attr}_prediction"] = class_accuracy
+                    # Area under the ROC curve (multi-class)
                     subset_categorical_stats.loc["auroc", f"{attr}_prediction"] = roc_auc_score(
                         target_num_labels, pred_probas, multi_class="ovr"
                     )
