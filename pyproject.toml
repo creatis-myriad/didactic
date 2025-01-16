@@ -35,29 +35,7 @@ PyYAML = "*"
 matplotlib = "*"
 pacmap = "*"
 comet-ml = "*"
-xgboost = "*"
 vital = { path = "./vital/", develop = true }
-
-# XTab packages (which use the AutoGluon framework)
-# They're commented out because
-# 1) Poetry is not able to recognize the package name because the "_" between "autogluon" and submodule names are in fact escaped "."
-#"autogluon_common" = { path = "./XTab/autogluon/common/", develop = true }
-#"autogluon_core" = { path = "./XTab/autogluon/core/", develop = true }
-#"autogluon_features" = { path = "./XTab/autogluon/features/", develop = true }
-#"autogluon_multimodal" = { path = "./XTab/autogluon/multimodal/", develop = true }
-
-# Dependencies required by XTab submodule
-# Because I only managed to install XTab packages manually using pip with the "no-deps" flag, their aggregated dependencies
-# are listed here, to maximize the amount of packages in the environment still managed using poetry
-nlpaug = "*"
-text-unidecode = "*"
-nptyping = "<2.0"
-boto3 = "*"
-timm = "*"
-nltk = "*"
-transformers = "*"
-pytorch-metric-learning = "*"
-evaluate = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^2.20.0"
