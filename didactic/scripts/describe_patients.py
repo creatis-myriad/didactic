@@ -22,6 +22,14 @@ _NUM_ATTR_STATS.update(
 _NUM_ATTR_DECIMALS = defaultdict(int)
 _NUM_ATTR_DECIMALS.update(
     {
+        TabularAttribute.a4c_ed_sc_min: 2,
+        TabularAttribute.a4c_ed_sc_max: 2,
+        TabularAttribute.a4c_ed_lc_min: 2,
+        TabularAttribute.a4c_ed_lc_max: 2,
+        TabularAttribute.a2c_ed_ic_min: 2,
+        TabularAttribute.a2c_ed_ic_max: 2,
+        TabularAttribute.a2c_ed_ac_min: 2,
+        TabularAttribute.a2c_ed_ac_max: 2,
         TabularAttribute.bmi: 1,
         TabularAttribute.ddd: 1,
         TabularAttribute.gfr: 1,
