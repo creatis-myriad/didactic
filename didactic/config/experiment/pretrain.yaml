@@ -5,7 +5,7 @@ defaults:
   - override /task/model/encoder: cardinal-ft-transformer
 
 trainer:
-  max_epochs: 2500
+  max_steps: 2500
 
 task:
   contrastive_loss:
