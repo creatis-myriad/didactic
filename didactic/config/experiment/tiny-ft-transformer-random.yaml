@@ -2,7 +2,7 @@
 
 defaults:
   - cardiac-multimodal-representation
-  - override /task/model/encoder: cardinal-ft-transformer
+  - override /task/model/encoder: tiny-ft-transformer
 
 trainer:
   max_steps: 2500
@@ -11,10 +11,6 @@ task:
   predict_losses:
     ht_severity:
       _target_: torch.nn.CrossEntropyLoss
-  ordinal_mode: True
-  contrastive_loss:
-    _target_: vital.metrics.train.metric.NTXent
-  contrastive_loss_weight: 0
 
 callbacks:
   learning_rate_finder:

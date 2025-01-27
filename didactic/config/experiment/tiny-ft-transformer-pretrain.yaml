@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - cardiac-multimodal-representation
+  - override /task/model/encoder: tiny-ft-transformer
+
+trainer:
+  max_steps: 2500
+
+task:
+  contrastive_loss_weight: 1
+
+callbacks:
+  learning_rate_finder:
+    _target_: pytorch_lightning.callbacks.LearningRateFinder
