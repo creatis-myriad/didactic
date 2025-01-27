@@ -1,4 +1,3 @@
-import functools
 import itertools
 import logging
 import math
@@ -10,7 +9,8 @@ import vital
 from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch.nn import Parameter, ParameterDict, init
-from torchmetrics.functional import accuracy, auroc, mean_absolute_error
+from torchmetrics import MeanAbsoluteError
+from torchmetrics.classification import BinaryAccuracy, BinaryAUROC, MulticlassAccuracy, MulticlassAUROC
 from vital.data.augmentation.base import mask_tokens, random_masking
 from vital.data.cardinal.config import CardinalTag, TabularAttribute, TimeSeriesAttribute
 from vital.data.cardinal.config import View as ViewEnum
@@ -174,7 +174,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             self.test_mtr_p = 0
 
         # Configure losses/metrics to compute at each train/val/test step
-        self.metrics = {}
+        self.metrics = nn.ModuleDict()
 
         # Supervised losses and metrics
         self.predict_losses = {}
@@ -190,18 +190,22 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         )  # Hyperparameter to easily access target attributes
         for attr in self.predict_losses:
             if attr in TabularAttribute.numerical_attrs():
-                self.metrics[attr] = {"mae": mean_absolute_error}
+                self.metrics[attr] = nn.ModuleDict({"mae": MeanAbsoluteError()})
             elif attr in TabularAttribute.binary_attrs():
-                self.metrics[attr] = {
-                    "acc": functools.partial(accuracy, task="binary"),
-                    "auroc": functools.partial(auroc, task="binary"),
-                }
+                self.metrics[attr] = nn.ModuleDict(
+                    {
+                        "acc": BinaryAccuracy(),
+                        "auroc": BinaryAUROC(),
+                    }
+                )
             else:  # attr in TabularAttribute.categorical_attrs()
                 num_classes = len(TABULAR_CAT_ATTR_LABELS[attr])
-                self.metrics[attr] = {
-                    "acc": functools.partial(accuracy, task="multiclass", num_classes=num_classes),
-                    "auroc": functools.partial(auroc, task="multiclass", num_classes=num_classes),
-                }
+                self.metrics[attr] = nn.ModuleDict(
+                    {
+                        "acc": MulticlassAccuracy(num_classes=num_classes, average="none"),
+                        "auroc": MulticlassAUROC(num_classes=num_classes, average="none"),
+                    }
+                )
         # Switch on ordinal mode if i) it's enabled, and ii) there are ordinal targets to predict
         self.hparams.ordinal_mode = self.hparams.ordinal_mode and any(
             attr in TabularAttribute.ordinal_attrs() for attr in self.predict_losses
@@ -616,7 +620,16 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             )
 
             for metric_tag, metric in self.metrics[attr].items():
-                metrics[f"{metric_tag}/{attr}"] = metric(y_hat[notna_mask], target[notna_mask])
+                metric_res = metric(y_hat[notna_mask], target[notna_mask])
+
+                # For multiclass categorical attributes, metrics are not averaged by default, so log them for each
+                # class separately and then average them manually
+                if attr in TabularAttribute.categorical_attrs():
+                    for class_label, metric_res_for_class in zip(TABULAR_CAT_ATTR_LABELS[attr], metric_res):
+                        metrics[f"{metric_tag}/{attr}/{class_label}"] = metric_res_for_class
+                    metric_res = metric_res.mean()
+
+                metrics[f"{metric_tag}/{attr}"] = metric_res
 
         # Reduce loss across the multiple targets
         losses["s_loss"] = torch.stack(list(losses.values())).mean()
