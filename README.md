@@ -31,9 +31,6 @@ To help you follow along with the organization of the repository, here is a summ
 │   │    └── representation_visualization.py    <- application to visualize the distribution of the dataset in a
 │   │                                              representation learned by a model, w.r.t. dataset variables.
 │   │
-│   ├── callbacks   <- custom callbacks for PyTorch Lightning, e.g. to log metrics, save checkpoints, etc.
-│   │   └── finetune.py <- callback to help finetune models by freezing specific layers.
-│   │
 │   ├── config      <- configuration files for Hydra, to define the options available for the `didactic` runner.
 │   │   ├── experiment  <- pre-configured experiments for the `didactic` runner.
 │   │   └── task        <- configuration for individual components of the full pipeline.
