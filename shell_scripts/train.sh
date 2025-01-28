@@ -1,7 +1,8 @@
 #!/bin/bash
 
-export CARDIAC_MULTIMODAL_REPR_PATH=$HOME/data/didactic/results/5-fold-cv/multirun
-export COMET_PROJECT_NAME=didactic-5-fold-cv
+export CARDINAL_DATA_PATH=$1
+export CARDIAC_MULTIMODAL_REPR_PATH=$2
+export COMET_PROJECT_NAME=$3
 
 # tiny ft-transformer (random weights init)
 didactic-runner -m hydra/launcher=joblib hydra.launcher.n_jobs=10 +experiment=tiny-ft-transformer-random trainer.enable_progress_bar=False task/data=tab-no-echo-data,tab-no-echo-data+ts,tab-all,tab-all+ts 'split_idx=range(5)' >>$CARDIAC_MULTIMODAL_REPR_PATH/tiny-ft-transformer-rand.log 2>&1

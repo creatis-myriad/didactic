@@ -55,6 +55,9 @@ To help you follow along with the organization of the repository, here is a summ
 │       └── cardiac_multimodal_representation.py    <- full pipeline to train/infer on tabular and time-series data
 │                                                      (fig. 1 in the paper).
 │
+├── shell_scripts    <- shell scripts
+│   └── train.sh        <- train multimodal transformers for HT severity classification on the CARDINAL dataset
+│
 └── vital       <- separate repository (included as a git submodule), of generic PyTorch modules, losses, metrics, and
                    other tooling (e.g. image processing) commonly used. Also contains data-handling for specialized
                    medical imaging datasets, e.g. CAMUS, CARDINAL.
@@ -114,7 +117,26 @@ This project uses Hydra to handle the configuration of the
 the `didactic` runner pipeline are available in the [config package](didactic/config). These files are meant to be
 composed together by Hydra to produce a complete configuration for a run.
 
-Below we provide examples of how to run some basic commands using the Hydra CLI:
+#### Reproduce experiments from the paper
+To reproduce the experiments described in the paper, you can use the [provided shell script](shell_scripts/train.sh).
+Comments indicate which experiments each command corresponds to.
+
+To run the shell script, you have to provide it with 3 arguments:
+1. The path to the dataset root folder;
+2. The path to the directory where the results will be saved;
+3. The name of the Comet project to log the experiments to.
+
+For example:
+```shell script
+./shell_scripts/train.sh /path/to/dataset /path/to/results comet-project-name
+```
+
+#### Configure your own experiments
+If you want to run other experiments than the ones provided in the [shell script](shell_scripts/train.sh) (and reported
+in the paper), you can take inspiration from the commands there and from the pre-configured Hydra experiments in the
+[config/experiment](didactic/config/experiment) folder.
+
+Below are some basic examples of how to customize experiments using the Hydra CLI:
 ```shell script
 # list generic trainer options and datasets on which you can train
 didactic-runner -h
@@ -122,18 +144,8 @@ didactic-runner -h
 # select high-level options of task to run, and architecture and dataset to use
 didactic-runner task=<TASK> task/model=<MODEL> data=<DATASET>
 
-# display the available configuration options for a specific combination of task/model/data (e.g Enet on CARDINAL)
-didactic-runner task=segmentation task/model=enet data=cardinal -h
-
-# train and test a specific system (e.g beta-VAE on CARDINAL)
-didactic-runner task=autoencoder task/model=beta-vae data=cardinal data.dataset_path=<DATASET_PATH> [optional args]
-
-# test a previously saved system (e.g. beta-VAE on CARDINAL)
-didactic-runner task=autoencoder task/model=beta-vae data=cardinal data.dataset_path=<DATASET_PATH> \
-  ckpt=<CHECKPOINT_PATH> train=False
-
-# run one of the fully pre-configured 'experiment' from the `config/experiment` folder (e.g. Enet on CARDINAL)
-didactic-runner +experiment=cardinal/enet
+# run one of the fully pre-configured 'experiment' from the `config/experiment` folder (e.g. XTab)
+didactic-runner +experiment=xtab
 ```
 
 To create your own pre-configured experiments, like the one used in the last example, we refer you to [Hydra's own
