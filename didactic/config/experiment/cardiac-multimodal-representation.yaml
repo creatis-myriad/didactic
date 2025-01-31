@@ -2,7 +2,7 @@
 
 defaults:
   - /task/data: tab-all+ts
-  - /task/time_series_tokenizer/model: null
+  - /task/time_series_tokenizer/model: transformer
   - /task/model/encoder: ???
   - /task/model/contrastive_head: mlp
   - /task/model/prediction_head: ft-prediction
@@ -15,7 +15,6 @@ test: True
 
 trainer:
   devices: 1
-  precision: 16-mixed
 
 data:
   batch_size: 128
