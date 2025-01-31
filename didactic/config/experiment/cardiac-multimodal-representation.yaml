@@ -138,9 +138,9 @@ task:
 run_path: ${hydra:runtime.choices.experiment}/data=${hydra:runtime.choices.task/data}/contrastive=${task.contrastive_loss_weight}/encoder=${hydra:runtime.choices.task/model/encoder},cross_blocks=${task.model.encoder.n_bidirectional_blocks}/time_series_tokenizer=${hydra:runtime.choices.task/time_series_tokenizer/model}/cls_token=${task.cls_token}/ordinal_mode=${task.ordinal_mode}
 hydra:
   run:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}/${run_path}/${hydra.job.override_dirname}
+    dir: ${oc.env:OUTPUT_DIR}/${run_path}/${hydra.job.override_dirname}
   sweep:
-    dir: ${oc.env:CARDIAC_MULTIMODAL_REPR_PATH}
+    dir: ${oc.env:OUTPUT_DIR}
     subdir: ${run_path}/${hydra.job.override_dirname}
   job:
     config:
