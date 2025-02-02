@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from seaborn import JointGrid
+from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
 
 
 def plot_embeddings_variability(
@@ -44,19 +45,30 @@ def plot_embeddings_variability(
 
     # Scatter plot of the position along the continuum (i.e. mean) w.r.t. variability (i.e. std) and user-defined hue
     data = {"val": val, "std": std}
-    grid_kwargs = {}
+    plot_kwargs = {}
     if hue is not None:
         data[hue_name] = hue
-        grid_kwargs.update(hue=hue_name, hue_order=hue_order)
+        plot_kwargs.update(hue=hue_name, hue_order=hue_order)
     data = pd.DataFrame(data=data)
 
     with sns.axes_style("darkgrid"):
-        grid = sns.JointGrid(data=data, x="val", y="std", **grid_kwargs)
-        grid.plot_joint(sns.scatterplot)
-        sns.histplot(data=data, x="val", ax=grid.ax_marg_x, **grid_kwargs, legend=False)
-        sns.kdeplot(data=data, y="std", ax=grid.ax_marg_y, **grid_kwargs, legend=False, clip=(0, 1))
+        # Hack to include the cardinalities of each group in the legend
+        scatter = sns.scatterplot(data=data, x="val", y="std", **plot_kwargs)
+        group_labels = TABULAR_CAT_ATTR_LABELS[hue_name]
+        groups = {group_label: sum(data[hue_name] == group_label) for group_label in group_labels}
+        scatter.legend(
+            scatter.legend_.legend_handles,
+            [f"{group_label} (n={group_size})" for group_label, group_size in groups.items()],
+            title="HT severity",
+        )
+        scatter.set(
+            xlim=(-0.025, 1.025),
+            ylim=(0, 0.16),
+            xlabel="Stratification predicted by representative model",
+            ylabel="Stratification's SD across models",
+        )
 
-    return grid
+    return scatter
 
 
 def main():
@@ -145,6 +157,11 @@ def main():
             hue_order=TABULAR_CAT_ATTR_LABELS[hue_attr],
         )
 
+    # Ensure that matplotlib is using 'agg' backend
+    # to avoid possible 'Could not connect to any X display' errors
+    # when no X server is available, e.g. in remote terminal
+    plt.switch_backend("agg")
+
     output_dir.mkdir(parents=True, exist_ok=True)
     # Generate a plot of the variability w.r.t. the mean embedding as well as each encoder's embedding
     for ref_embedding in tqdm(
@@ -153,15 +170,7 @@ def main():
         unit="embedding",
     ):
         # Generate the plot of the variability
-        plot = plot_embeddings_variability(embeddings, ref_embedding=ref_embedding, **plot_kwargs)
-        xlabel = f"{encoding_task}"
-        if ref_embedding is None:
-            xlabel += " mean"
-        ylabel = f"{encoding_task} std"
-        plot.set_axis_labels(xlabel, ylabel)
-        # Uncomment following lines to add a title to the plot
-        # Move the title above the plot, to avoid overlapping with the x-axis marginal plot
-        # plot.figure.suptitle(f"{xlabel} w.r.t. std and {hue_attr}", y=1.02)
+        plot_embeddings_variability(embeddings, ref_embedding=ref_embedding, **plot_kwargs)
 
         filename = ref_embedding if ref_embedding else "mean"
         plt.savefig(output_dir / f"{filename}.svg", bbox_inches="tight")
