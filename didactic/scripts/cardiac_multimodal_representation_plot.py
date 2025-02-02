@@ -1,10 +1,11 @@
 from typing import Dict, Iterator, Sequence, Tuple
 
 import pandas as pd
+import seaborn as sns
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from vital.data.cardinal.config import CardinalTag, TabularAttribute
-from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
+from vital.data.cardinal.utils.attributes import TABULAR_ATTR_TITLES, TABULAR_CAT_ATTR_LABELS
 from vital.data.cardinal.utils.data_struct import Patient
 from vital.data.cardinal.utils.itertools import Patients
 from vital.utils.plot import embedding_scatterplot
@@ -107,30 +108,66 @@ def plot_patients_embeddings(
     # hue order for the plots
     cat_attrs_order = TABULAR_CAT_ATTR_LABELS.copy()
     cat_attrs_order.update({attr: list(attr_lists) for attr, attr_lists in categorical_attrs_lists.items()})
+    cat_attrs_order["Subset"] = ["train", "val", "test"]  # Hardcoded order for the "Subset" attribute
+
+    # Prepare the plot kwargs for each attribute
+    plot_kwargs_by_attr = {}
+    for attr in plot_attrs:
+        # Add categorical/numerical kwargs depending on the attribute type
+        if attr in [*TabularAttribute.categorical_attrs(), *list(categorical_attrs_lists)]:
+            plot_kwargs = cat_plot_kwargs
+        else:
+            plot_kwargs = num_plot_kwargs
+
+        plot_kwargs_by_attr[attr] = {
+            "hue": attr,
+            "hue_order": cat_attrs_order.get(attr),
+            "style_order": cat_attrs_order.get(plot_kwargs.get("style")),
+            **plot_kwargs,
+        }
 
     # Plot data w.r.t. attributes
     for attr, plot in zip(
-        plot_attrs,
-        embedding_scatterplot(
-            patient_encodings,
-            [
-                {
-                    "hue": attr,
-                    "hue_order": cat_attrs_order.get(attr),
-                    # Add categorical/numerical kwargs depending on the attribute type
-                    **(
-                        {True: cat_plot_kwargs, False: num_plot_kwargs}[
-                            attr in [*TabularAttribute.categorical_attrs(), *list(categorical_attrs_lists)]
-                        ]
-                    ),
-                }
-                for attr in plot_attrs
-            ],
-            data_tag="encoding",
-            **embedding_kwargs,
-        ),
+        plot_kwargs_by_attr,
+        embedding_scatterplot(patient_encodings, plot_kwargs_by_attr.values(), data_tag="encoding", **embedding_kwargs),
     ):
         plot.set(title=None, xlabel=None, xticklabels=[], ylabel=None, yticklabels=[])
+
+        # For categorical attributes, customize the plots w/ more descriptive legends
+        # by adding the number of patients assigned to each label to the legend
+        if attr in [*TabularAttribute.categorical_attrs(), *list(categorical_attrs_lists)]:
+            legend_sections = [attr]
+            if style_attr := plot_kwargs_by_attr[attr].get("style"):
+                legend_sections.append(style_attr)
+
+            legend_groups_count = {
+                attr_label: sum(patient_encodings.index.get_level_values(plot_attr) == attr_label)
+                for plot_attr in legend_sections
+                for attr_label in TABULAR_CAT_ATTR_LABELS.get(plot_attr)
+                or list(categorical_attrs_lists[plot_attr].keys())
+            }
+
+            with sns.axes_style("darkgrid"):
+                for legend_entry in plot.legend().texts:
+                    entry_label = legend_entry.get_text()
+                    if entry_label in TABULAR_ATTR_TITLES:
+                        legend_entry.set_text(TABULAR_ATTR_TITLES[entry_label])
+                    if entry_label in legend_groups_count:
+                        legend_entry.set_text(f"{entry_label} (n={legend_groups_count[entry_label]})")
+
+        # For the predicted HT severity continuum, replace the hue legend with a custom colorbar
+        elif attr == "ht_severity_continuum_param":
+            # Remove the default seaborn hue legend
+            plot.get_legend().remove()
+
+            # Replace the hue legend with a custom colorbar
+            # continuum_param_vals = patient_encodings.index.get_level_values("ht_severity_continuum_param")
+            cmap = sns.color_palette("flare", as_cmap=True)
+            norm = plt.Normalize(0, 1)
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            cbar = plot.figure.colorbar(sm, ax=plot)
+            cbar.set_label("Predicted stratification")
+
         yield attr, plot
 
 
@@ -237,7 +274,8 @@ def main():
         plot_categorical_attrs_dirs = []
     categorical_attrs_lists = {
         attr_dir.name: {
-            attr_label_file.stem: attr_label_file.read_text().splitlines()
+            # HACK: Use YAML parser to cast dtypes group IDs (e.g. bool, int, etc.)
+            yaml_flow_collection(attr_label_file.stem): attr_label_file.read_text().splitlines()
             for attr_label_file in sorted(attr_dir.glob("*.txt"))
         }
         for attr_dir in plot_categorical_attrs_dirs
