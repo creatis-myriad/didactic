@@ -225,7 +225,9 @@ class CardiacRepresentationPredictionWriter(BasePredictionWriter):
                     # Average accuracy across all classes
                     subset_categorical_stats.loc["acc", f"{attr}_prediction"] = accuracy_score(target, pred_labels)
                     # Accuracy for each class
-                    class_accuracies = confusion_matrix(target, pred_labels, normalize="true").diagonal()
+                    class_accuracies = confusion_matrix(
+                        target, pred_labels, normalize="true", labels=TABULAR_CAT_ATTR_LABELS[attr]
+                    ).diagonal()
                     for class_label, class_accuracy in zip(TABULAR_CAT_ATTR_LABELS[attr], class_accuracies):
                         subset_categorical_stats.loc[f"acc_{class_label}", f"{attr}_prediction"] = class_accuracy
                     # Area under the ROC curve (multi-class)
