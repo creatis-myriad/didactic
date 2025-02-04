@@ -4,3 +4,4 @@ defaults:
 n_self_blocks: 6
 attention_n_heads: 2
 ffn_d_hidden: ${op.mul:1.5,${task.model.encoder.d_token},int}
+first_prenormalization: True
