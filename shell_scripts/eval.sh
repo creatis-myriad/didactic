@@ -2,7 +2,8 @@
 
 CARDINAL_DATA_PATH=$1
 MODEL_COMMON_PATH=$2
-OUTPUT_DIR=$3
+CHOSEN_MODEL_SPLIT_IDX=$3
+OUTPUT_DIR=$4
 
 # Compute the alignment scores between the different splits of the best configuration
 # IMPORTANT: Requires the model to be registered in the Comet model registry w/ the "-{split_idx}" suffix
@@ -10,8 +11,11 @@ echo "Computing alignment scores between models" >>$OUTPUT_DIR/score_models_alig
 python ~/remote/didactic/didactic/scripts/score_models_alignment.py "$MODEL_COMMON_PATH-0" "$MODEL_COMMON_PATH-1" "$MODEL_COMMON_PATH-2" "$MODEL_COMMON_PATH-3" "$MODEL_COMMON_PATH-4" --data_roots $CARDINAL_DATA_PATH --views A4C A2C --output_file=$OUTPUT_DIR/alignment_scores.csv >>$OUTPUT_DIR/score_models_alignment.log 2>&1
 
 # Plot variability of predicted continuum w.r.t. position along the continuum
+# Copy the dataset partitioning files to "Subset" sub-directories (for plotting purposes)
+mkdir -p $OUTPUT_DIR/split_idx=$split_idx/Subset
+rsync -av $CARDINAL_DATA_PATH/splits/$split_idx/ $OUTPUT_DIR/split_idx=$split_idx/Subset
 echo "Plotting variability of predicted continuum w.r.t. position along the continuum between models" >>$OUTPUT_DIR/plot_models_variability.log 2>&1
-python ~/remote/didactic/didactic/scripts/plot_models_variability.py "$MODEL_COMMON_PATH-0" "$MODEL_COMMON_PATH-1" "$MODEL_COMMON_PATH-2" "$MODEL_COMMON_PATH-3" "$MODEL_COMMON_PATH-4" --data_roots $CARDINAL_DATA_PATH --views A4C A2C --hue_attr=ht_severity --output_dir=$OUTPUT_DIR/continuum_param_variability >>$OUTPUT_DIR/plot_models_variability.log 2>&1
+python ~/remote/didactic/didactic/scripts/plot_models_variability.py "$MODEL_COMMON_PATH-0" "$MODEL_COMMON_PATH-1" "$MODEL_COMMON_PATH-2" "$MODEL_COMMON_PATH-3" "$MODEL_COMMON_PATH-4" --data_roots $CARDINAL_DATA_PATH --views A4C A2C --plot_categorical_attrs_dirs $OUTPUT_DIR/split_idx=$CHOSEN_MODEL_SPLIT_IDX/Subset '--plot_kwargs={hue:ht_severity,style:Subset}' --output_dir=$OUTPUT_DIR/continuum_param_variability >>$OUTPUT_DIR/plot_models_variability.log 2>&1
 
 # For each of the model
 for split_idx in $(seq 0 4); do
