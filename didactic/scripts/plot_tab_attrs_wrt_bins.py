@@ -25,6 +25,7 @@ def main():
     import seaborn as sns
     from describe_patients import _NUM_ATTR_DECIMALS
     from matplotlib import pyplot as plt
+    from vital.utils.parsing import yaml_flow_collection
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -40,9 +41,32 @@ def main():
         help="Whether to use all precision of the aggregated tabular attribute values, or round to the precision "
         "used in clinic for each attribute",
     )
-    parser.add_argument("--label_x_axis", action="store_true", help="Whether to label the x-axis")
+    parser.add_argument(
+        "--attr_label",
+        nargs="?",
+        choices=["xlabel", "ylabel"],
+        help="Whether to label the attribute on the x-axis or y-axis",
+    )
+    parser.add_argument(
+        "--group_label",
+        nargs="?",
+        choices=["xlabel", "ylabel"],
+        help="Whether to label the group on the x-axis or y-axis",
+    )
+    parser.add_argument(
+        "--annot_kws",
+        type=yaml_flow_collection,
+        metavar="{ARG1:VAL1,ARG2:VAL2,...}",
+        help="Keyword arguments to pass as 'annot_kws' to `seaborn.heatmap`",
+    )
     parser.add_argument("--output_dir", type=Path, help="Path to the directory where to save the plots")
     args = parser.parse_args()
+
+    if (args.attr_label == args.group_label) and (args.attr_label is not None):
+        raise ValueError(
+            f"The attribute and group labels must be used to label different axes, but both are set to "
+            f"'{args.attr_label}'."
+        )
 
     # Extract the mean of the tabular attributes w.r.t. the bins
     tab_attrs_df = pd.DataFrame.from_dict(_TAB_ATTRS_WRT_BINS, orient="index").loc[args.tabular_attrs]
@@ -66,13 +90,21 @@ def main():
             cmap=_TAB_ATTRS_CMAP[tab_attr],
             square=True,
             annot=True,
+            annot_kws=args.annot_kws,
             fmt=f".{tab_attr_decimals}f",
             yticklabels=False,
             xticklabels=False,
             cbar=False,
         )
         plot.tick_params(bottom=False)
-        plot.set(title=None, ylabel=tab_attr, xlabel="Predicted stratification bin" if args.label_x_axis else None)
+
+        label_kws = {}
+        if args.attr_label:
+            label_kws[args.attr_label] = tab_attr
+        if args.group_label:
+            label_kws[args.group_label] = "Predicted stratification bin"
+
+        plot.set(title=None, **label_kws)
 
         # Save the plots locally
         plt.savefig(args.output_dir / f"{tab_attr}.svg", bbox_inches="tight")
