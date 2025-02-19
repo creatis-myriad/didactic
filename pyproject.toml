@@ -30,6 +30,7 @@ holoviews = { version = "*", extras = ["recommended"] }
 numba = "~0.57.1"   # as to be manually pinned to avoid resolver picking a too old version w/o pre-build llvmlite dep
 numpy = "*"
 pandas = "*"
+seaborn = "*"
 torchmetrics = "*"
 PyYAML = "*"
 matplotlib = "*"
