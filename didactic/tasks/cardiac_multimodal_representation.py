@@ -5,7 +5,6 @@ from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
 
 import hydra
 import torch
-import vital
 from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch.nn import Parameter, ParameterDict, init
@@ -17,9 +16,11 @@ from vital.data.cardinal.config import View as ViewEnum
 from vital.data.cardinal.datapipes import MISSING_CAT_ATTR, PatientData, filter_time_series_attributes
 from vital.data.cardinal.utils.attributes import TABULAR_CAT_ATTR_LABELS
 from vital.models.attention.layers import CLSToken, PositionalEncoding, SequencePooling
+from vital.models.attention.transformer import Transformer
 from vital.tasks.generic import SharedStepsTask
 from vital.utils.decorators import auto_move_data
 
+from didactic.models.irene import Encoder
 from didactic.models.tabular import TabularEmbedding
 from didactic.models.time_series import TimeSeriesEmbedding
 
@@ -240,9 +241,12 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         self.multimodal_encoder = False
         if isinstance(self.encoder, nn.TransformerEncoder):  # Native PyTorch `TransformerEncoder`
             self.nhead = self.encoder.layers[0].self_attn.num_heads
-        elif isinstance(self.encoder, vital.models.attention.transformer.Transformer):  # vital submodule `Transformer`
+        elif isinstance(self.encoder, Transformer):  # vital submodule `Transformer`
             self.nhead = self.hparams.model.encoder.attention_n_heads
             self.multimodal_encoder = bool(self.hparams.model.encoder.n_bidirectional_blocks)
+        elif isinstance(self.encoder, Encoder):
+            self.nhead = self.hparams.model.encoder.config.transformer.num_heads
+            self.multimodal_encoder = True
         else:
             raise NotImplementedError(
                 "To instantiate the cardiac multimodal representation task, it is necessary to determine the number of "

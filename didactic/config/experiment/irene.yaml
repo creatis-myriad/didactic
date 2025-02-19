@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - cardiac-multimodal-representation
+  - override /task/model/encoder: irene
+
+trainer:
+  max_steps: 2500
+  precision: bf16-mixed
+
+task:
+  predict_losses:
+    ht_severity:
+      _target_: torch.nn.CrossEntropyLoss
+
+  # Architecture parameters to define the same architecture as IRENE
+  embed_dim: 768
+  ordinal_mode: False
+  cls_token: False
+
+callbacks:
+  learning_rate_finder:
+    _target_: pytorch_lightning.callbacks.LearningRateFinder
