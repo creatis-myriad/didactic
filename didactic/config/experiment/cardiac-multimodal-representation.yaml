@@ -122,6 +122,7 @@ task:
     _target_: vital.metrics.train.metric.NTXent
   contrastive_loss_weight: 0
   cls_token: True
+  sequence_pooling: False
   mtr_p: [ 0.6, 0 ]
   mt_by_attr: False
 
@@ -134,7 +135,7 @@ task:
     resample_dim: 64
 
 
-run_path: ${hydra:runtime.choices.experiment}/data=${hydra:runtime.choices.task/data}/contrastive=${task.contrastive_loss_weight}/encoder=${hydra:runtime.choices.task/model/encoder},cross_blocks=${task.model.encoder.n_bidirectional_blocks}/time_series_tokenizer=${hydra:runtime.choices.task/time_series_tokenizer/model}/cls_token=${task.cls_token}/ordinal_mode=${task.ordinal_mode}
+run_path: ${hydra:runtime.choices.experiment}/data=${hydra:runtime.choices.task/data}/contrastive=${task.contrastive_loss_weight}/encoder=${hydra:runtime.choices.task/model/encoder},cross_blocks=${task.model.encoder.n_bidirectional_blocks}/time_series_tokenizer=${hydra:runtime.choices.task/time_series_tokenizer/model}/cls_token=${task.cls_token},seq_pool=${task.sequence_pooling}/ordinal_mode=${task.ordinal_mode}
 hydra:
   run:
     dir: ${oc.env:OUTPUT_DIR}/${run_path}/${hydra.job.override_dirname}

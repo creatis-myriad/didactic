@@ -43,6 +43,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         tabular_tokenizer: Optional[TabularEmbedding | DictConfig] = None,
         time_series_tokenizer: Optional[TimeSeriesEmbedding | DictConfig] = None,
         cls_token: bool = True,
+        sequence_pooling: bool = False,
         mtr_p: float | Tuple[float, float] = 0,
         mt_by_attr: bool = False,
         *args,
@@ -67,8 +68,10 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
             tabular_tokenizer: Tokenizer that can process tabular, i.e. patient records, data.
             time_series_tokenizer: Tokenizer that can process time-series data.
             cross_attention_module: Module to use for cross-attention between the tabular and time-series tokens.
-            cls_token: If `True`, adds a CLS token to use as the encoder's output token.
-                If `False`, the output token is obtained by sequence pooling over the encoder's output tokens.
+            cls_token: If `True`, adds a CLS token to use as the encoder's output token. Mutually exclusive with
+                `sequence_pooling`.
+            sequence_pooling: If `True`, the output token is obtained by sequence pooling over the encoder's output
+                tokens. Mutually exclusive with `cls_token`.
             mtr_p: Probability to replace tokens by the learned MASK token, following the Mask Token Replacement (MTR)
                 data augmentation method.
                 If a float, the value will be used as masking rate during training (disabled during inference).
@@ -124,6 +127,11 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
                 "You configured neither tabular attributes nor time-series attributes as input variables to the model, "
                 "but the model requires at least one input. Set non-empty values for either or both `tabular_attrs` "
                 "and `time_series_attrs`."
+            )
+        if cls_token and sequence_pooling:
+            raise ValueError(
+                "You have enabled both the CLS token and sequence pooling. These are two mutually exclusive options to "
+                "define how to extract the encoder's output token."
             )
 
         super().__init__(*args, **kwargs)
@@ -271,7 +279,7 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         # Initialize parameters of method for reducing the dimensionality of the encoder's output to only one token
         if self.hparams.cls_token:
             self.cls_token = CLSToken(self.hparams.embed_dim)
-        else:
+        elif self.hparams.sequence_pooling:
             self.sequence_pooling = SequencePooling(self.hparams.embed_dim)
 
         if self.hparams.mtr_p:
@@ -494,9 +502,12 @@ class CardiacMultimodalRepresentationTask(SharedStepsTask):
         if self.hparams.cls_token:
             # Only keep the CLS token (i.e. the last token) from the tokens outputted by the encoder
             out_features = out_tokens[:, -1, :]  # (N, S, E) -> (N, E)
-        else:
+        elif self.hparams.sequence_pooling:
             # Perform sequence pooling of the transformers' output tokens
             out_features = self.sequence_pooling(out_tokens)  # (N, S, E) -> (N, E)
+        else:
+            # Perform average pooling of the transformers' output tokens
+            out_features = out_tokens.mean(dim=1)  # (N, S, E) -> (N, E)
 
         return out_features
 
