@@ -1,5 +1,6 @@
 from typing import Dict, Iterator, Sequence, Tuple
 
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -172,11 +173,27 @@ def plot_patients_embeddings(
             plot.get_legend().remove()
 
             # Replace the hue legend with a custom colorbar
-            cmap = sns.color_palette("flare", as_cmap=True)
+            cmap = sns.color_palette(num_plot_kwargs.get("palette", "flare"), as_cmap=True)
             norm = plt.Normalize(0, 1)
             sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
             cbar = plot.figure.colorbar(sm, ax=plot)
             cbar.set_label("Predicted stratification")
+
+        # For the predicted HT severity continuum temperature, replace the hue legend with a custom colorbar
+        if attr.endswith("continuum_tau"):
+            # Remove the default seaborn hue legend
+            plot.get_legend().remove()
+
+            # Determine the range of the values for the colorbar
+            continuum_tau_values = np.round(patient_encodings.index.get_level_values(attr), 2)
+            tau_min, tau_max = continuum_tau_values.min(), continuum_tau_values.max()
+
+            # Replace the hue legend with a custom colorbar
+            cmap = sns.color_palette(num_plot_kwargs.get("palette", "flare"), as_cmap=True)
+            norm = plt.Normalize(tau_min, tau_max)
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            cbar = plot.figure.colorbar(sm, ax=plot)
+            cbar.set_label("Predicted stratification temperature")
 
         yield attr, plot
 
