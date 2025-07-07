@@ -27,6 +27,10 @@ To help you follow along with the organization of the repository, here is a summ
 ```
 ├── didactic    <- Package directory
 │   │
+│   ├── apps        <- scripts to launch interactive applications for data visualization, model exploration, etc.
+│   │    └── representation_visualization.py    <- application to visualize the distribution of the dataset in a
+│   │                                              representation learned by a model, w.r.t. dataset variables.
+│   │
 │   ├── config      <- configuration files for Hydra, to define the options available for the `didactic` runner.
 │   │   ├── experiment  <- pre-configured experiments for the `didactic` runner.
 │   │   └── task        <- configuration for individual components of the full pipeline.
