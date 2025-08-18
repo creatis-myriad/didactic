@@ -1,0 +1,24 @@
+_target_: vital.models.attention.transformer.Transformer
+
+d_token: 768
+n_bidirectional_blocks: 2
+n_self_blocks: 10
+attention_n_heads: 12
+attention_dropout: 0.1
+attention_initialization: kaiming
+attention_normalization:
+  _target_: torch.nn.LayerNorm
+  normalized_shape: ${task.model.encoder.d_token}
+  _partial_: True
+ffn_d_hidden: 3072
+ffn_dropout: 0.3
+ffn_activation:
+  _target_: torch.nn.GELU
+  _partial_: True
+ffn_normalization:
+  _target_: torch.nn.LayerNorm
+  normalized_shape: ${task.model.encoder.d_token}
+  _partial_: True
+residual_dropout: 0.1
+prenormalization: True
+first_prenormalization: True
