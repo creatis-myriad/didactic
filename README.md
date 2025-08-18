@@ -44,6 +44,7 @@ To help you follow along with the organization of the repository, here is a summ
 │   │                            representation learning model on the CARDINAL dataset.
 │   │
 │   ├── models      <- custom layers and modules used in our pipeline
+│   │   ├── irene.py        <- implementation of the IRENE state-of-the-art model for comparison
 │   │   ├── layers.py       <- layers, e.g. prediction head, ordinal classification, etc.
 │   │   ├── tabular.py      <- module for tabular data tokenization (fig. 2.a in the paper).
 │   │   └── time_series.py  <- module for time-series data tokenization (fig. 2.b in the paper).
