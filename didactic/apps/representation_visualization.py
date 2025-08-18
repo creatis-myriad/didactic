@@ -25,7 +25,7 @@ hv.extension("bokeh")
 PREDICTION_TASKS = ("continuum_param", "continuum_tau")
 
 
-def interactive_cardiac_multimodal_representation(
+def interactive_representation_visualization(
     model: CardiacMultimodalRepresentationTask,
     patients: Patients,
     mask_tag: str = CardinalTag.mask,
@@ -270,7 +270,7 @@ def main():
     }
 
     # Organize layout
-    panel = interactive_cardiac_multimodal_representation(
+    panel = interactive_representation_visualization(
         encoder,
         Patients(**kwargs),
         mask_tag,
@@ -280,7 +280,7 @@ def main():
     )
 
     # Launch server for the interactive app
-    pn.serve(panel, title="Cardiac Multimodal Representation Interactive Distribution", port=port)
+    pn.serve(panel, title="Cardiac Multimodal Representation Interactive Visualization", port=port)
 
 
 if __name__ == "__main__":

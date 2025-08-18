@@ -25,7 +25,7 @@ for split_idx in $(seq 0 4); do
 
   # Plot 2D embeddings of the transformer encoder representations
   echo "Generating 2D embedding of latent space for model on split $split_idx, using PaCMAP" >>$OUTPUT_DIR/2d_embeddings.log 2>&1
-  python ~/remote/didactic/didactic/scripts/cardiac_multimodal_representation_plot.py "$MODEL_COMMON_PATH-$split_idx" --data_roots $CARDINAL_DATA_PATH --views A4C A2C --plot_categorical_attrs_dirs $OUTPUT_DIR/split_idx=$split_idx/continuum_param_bins $OUTPUT_DIR/split_idx=$split_idx/Subset '--cat_plot_kwargs={style:Subset}' '--num_plot_kwargs={style:Subset,palette:flare}' --output_dir=$OUTPUT_DIR/split_idx=$split_idx/2d_embeddings >>$OUTPUT_DIR/2d_embeddings.log 2>&1
+  python ~/remote/didactic/didactic/scripts/representation_plot.py "$MODEL_COMMON_PATH-$split_idx" --data_roots $CARDINAL_DATA_PATH --views A4C A2C --plot_categorical_attrs_dirs $OUTPUT_DIR/split_idx=$split_idx/continuum_param_bins $OUTPUT_DIR/split_idx=$split_idx/Subset '--cat_plot_kwargs={style:Subset}' '--num_plot_kwargs={style:Subset,palette:flare}' --output_dir=$OUTPUT_DIR/split_idx=$split_idx/2d_embeddings >>$OUTPUT_DIR/2d_embeddings.log 2>&1
 
   # Plot variability of predicted continuum w.r.t. position along the continuum
   echo "Plotting variability of predicted continuum w.r.t. position along the continuum between models" >>$OUTPUT_DIR/plot_models_variability.log 2>&1
