@@ -4,11 +4,6 @@ CARDINAL_DATA_PATH=$1
 MODEL_COMMON_PATH=$2
 OUTPUT_DIR=$3
 
-# Compute the alignment scores between the different splits of the best configuration
-# IMPORTANT: Requires the model to be registered in the Comet model registry w/ the "-{split_idx}" suffix
-echo "Computing alignment scores between models" >>$OUTPUT_DIR/score_models_alignment.log 2>&1
-python ~/remote/didactic/didactic/scripts/score_models_alignment.py "$MODEL_COMMON_PATH-0" "$MODEL_COMMON_PATH-1" "$MODEL_COMMON_PATH-2" "$MODEL_COMMON_PATH-3" "$MODEL_COMMON_PATH-4" --data_roots $CARDINAL_DATA_PATH --views A4C A2C --output_file=$OUTPUT_DIR/alignment_scores.csv >>$OUTPUT_DIR/score_models_alignment.log 2>&1
-
 # For each of the model
 for split_idx in $(seq 0 4); do
 
