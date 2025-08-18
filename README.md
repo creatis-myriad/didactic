@@ -56,6 +56,7 @@ To help you follow along with the organization of the repository, here is a summ
 │                                                      (fig. 1 in the paper).
 │
 ├── shell_scripts    <- shell scripts
+│   ├── eval.sh         <- run various evaluation scripts on pretrained models, e.g. to produce figures
 │   └── train.sh        <- train multimodal transformers for HT severity classification on the CARDINAL dataset
 │
 └── vital       <- separate repository (included as a git submodule), of generic PyTorch modules, losses, metrics, and

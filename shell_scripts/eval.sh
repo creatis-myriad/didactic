@@ -1,8 +1,8 @@
 #!/bin/bash
 
-CARDINAL_DATA_PATH=$1
-MODEL_COMMON_PATH=$2
-OUTPUT_DIR=$3
+export CARDINAL_DATA_PATH=$1
+export MODEL_COMMON_PATH=$2
+export OUTPUT_DIR=$3
 
 # For each of the model
 for split_idx in $(seq 0 4); do
