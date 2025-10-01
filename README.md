@@ -16,6 +16,9 @@ Welcome to the code repository for projects related to the *Deep manIfolD leArni
 
 ## Publications
 
+[![Journal](http://img.shields.io/badge/IEEE%20TUFFC-2025-4b44ce.svg)](https://doi.org/10.1109/TUFFC.2025.3600902)
+[![Paper](http://img.shields.io/badge/paper-arxiv.2401.07796-B31B1B.svg)](https://arxiv.org/abs/2401.07796)
+
 </div>
 
 ## Description
@@ -207,9 +210,18 @@ pre-commit install
 > should thus reflect the package directory name of the current project, in place of `vital`.
 
 
-## References
-If you find this code useful, please consider citing the paper implemented in this repository relevant to you from the
-list below:
+## Citation
+If you find this code useful, please consider citing our paper explaining the pipeline:
 ```bibtex
-
+@article{painchaud_fusing_2025,
+	title = {Fusing {Echocardiography} {Images} and {Medical} {Records} for {Continuous} {Patient} {Stratification}},
+	volume = {72},
+	doi = {10.1109/TUFFC.2025.3600902},
+	number = {10},
+	journal = {IEEE Transactions on Ultrasonics, Ferroelectrics, and Frequency Control},
+	author = {Painchaud, N. and Stym-Popper, J. and Courand, P.-Y. and Thome, N. and Jodoin, P.-M. and Duchateau, N. and Bernard, O.},
+	month = oct,
+	year = {2025},
+	pages = {1388--1400},
+}
 ```
